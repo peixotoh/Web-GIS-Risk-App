@@ -1,0 +1,46 @@
+# Development/Reference files
+index1.html
+
+# Development folders (for reference only)
+src/php/
+
+# Large data files (too big for GitHub)
+data/json/ti_hazards.geojson
+src/js/tessin_hazards.js
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Environment variables
+.env
+.env.local
+
+# PHP specific
+*.php~
+
+# Cache directories
+.cache/
+.temp/
+temp/

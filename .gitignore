@@ -14,6 +14,7 @@ data/json/suisse_admin_lim.geojson
 data/json/ti_buildings.geojson
 data/json/suisse_admin_areas.js
 data/json/tessin_hazards.js
+data/json/flooding_hazards.js
 src/js/flooding_hazards.js
 
 # Operating System Files

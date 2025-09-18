@@ -40,9 +40,11 @@ function initializeSupabase() {
         // console.log('✅ Supabase connected');
         
         // Set up the Add button click handler
+        /*
         setupBuildingsButton();
         setupRemoveButton();
         setupAttributesButton();
+        */
         
     } catch (error) {
         console.error('❌ Supabase connection failed:', error);
@@ -50,7 +52,7 @@ function initializeSupabase() {
         setTimeout(initializeSupabase, 2000);
     }
 }
-
+/*
 // Function to set up the buildings button
 function setupBuildingsButton() {
     // console.log('🔧 Setting up buildings button...');
@@ -81,6 +83,7 @@ function setupBuildingsButton() {
         setTimeout(setupBuildingsButton, 1000);
     }
 }
+*/
 
 // Separate click handler function
 function handleBuildingButtonClick(e) {
@@ -97,6 +100,7 @@ function handleBuildingButtonClick(e) {
 }
 
 // Function to set up the remove button
+/*
 function setupRemoveButton() {
     // console.log('🔧 Setting up remove button...');
     
@@ -112,6 +116,7 @@ function setupRemoveButton() {
         setTimeout(setupRemoveButton, 1000);
     }
 }
+*/
 
 // Remove button click handler
 function handleRemoveButtonClick(e) {
@@ -136,6 +141,7 @@ function removeBuildingsFromMap() {
 }
 
 // Function to set up the attributes button
+/*
 function setupAttributesButton() {
     // console.log('🔧 Setting up attributes button...');
     
@@ -151,7 +157,7 @@ function setupAttributesButton() {
         setTimeout(setupAttributesButton, 1000);
     }
 }
-
+*/
 // Attributes button click handler
 function handleAttributesButtonClick(e) {
     e.preventDefault();
@@ -199,7 +205,7 @@ async function loadBuildingsFromSupabase() {
         const { data, error } = await supabase
             .from('ti_buildings')
             .select('EGID, GGDENAME, GDEKT, GKAT, GKLAS, GBAUJ, GAREA, GVOL, GKODE, GKODN')
-            .limit(100);
+            .limit(400);
         
         if (error) {
             console.error('❌ Supabase error:', error);

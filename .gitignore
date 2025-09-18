@@ -1,12 +1,20 @@
 # Development/Reference files
 index1.html
+git-commands-reference.txt
+src/js/map-3d.js
 
 # Development folders (for reference only)
 src/php/
+docs/
 
 # Large data files (too big for GitHub)
 data/json/ti_hazards.geojson
-src/js/tessin_hazards.js
+data/json/suisse_admin_areas.geojson
+data/json/suisse_admin_lim.geojson
+data/json/ti_buildings.geojson
+data/json/suisse_admin_areas.js
+data/json/tessin_hazards.js
+src/js/flooding_hazards.js
 
 # Operating System Files
 .DS_Store

@@ -1,7 +1,12 @@
 // ==================== LEAFLET MAP INITIALIZATION ====================
 function initializeMap() {
-    // Initialize the map with a set view in Switzerland and a zoom level
-    window.map = L.map('map').setView([46.9, 8.2], 8);
+    // Initialize the map with smooth zoom controls
+    window.map = L.map('map', {
+        // Smooth zoom settings for 1-level increments
+        zoomSnap: 1,           // Snap to integer zoom levels
+        zoomDelta: 1,          // Zoom by 1 level with each scroll/click
+        wheelPxPerZoomLevel: 120, // Less sensitive wheel scrolling to prevent double jumps
+    }).setView([46.9, 8.2], 9);
 
     // Set the background layer 
     L.tileLayer.provider('OpenStreetMap.Mapnik', {
@@ -255,7 +260,7 @@ function addSwissAdminAreas() {
         
         // Fit the map to show all administrative areas
         window.map.fitBounds(window.swissAdminLayer.getBounds(), {
-            padding: [10, 10]
+            padding: [5, 5]
         });
         
         // Prevent dragging outside of bounds

@@ -79,12 +79,22 @@ function resetFormControls() {
 }
 
 function removeAllLayers() {
-    // Remove hazard layers
+    // Remove hazard layers (both API and custom data)
     if (typeof removeRockfallLayer === 'function') {
         removeRockfallLayer();
     }
     if (typeof removeDebrisFlowLayer === 'function') {
         removeDebrisFlowLayer();
+    }
+    
+    // Remove custom hazard layers if they exist as separate variables
+    if (window.customRockfallLayer && window.map) {
+        window.map.removeLayer(window.customRockfallLayer);
+        window.customRockfallLayer = null;
+    }
+    if (window.customDebrisFlowLayer && window.map) {
+        window.map.removeLayer(window.customDebrisFlowLayer);
+        window.customDebrisFlowLayer = null;
     }
     
     // Remove ALL building layers (Supabase + static)
@@ -114,7 +124,7 @@ function removeAllLayers() {
 function resetMapView() {
     if (window.map) {
         // Reset to Switzerland extent or default view
-        window.map.setView([46.8182, 8.2275], 8); // Center of Switzerland
+        window.map.setView([46.8182, 8.2275], 9); // Center of Switzerland
     }
 }
 
@@ -149,6 +159,9 @@ function initializeWorkflow() {
     
     // Initialize hazard toggles  
     initializeHazardToggles();
+    
+    // Initialize data source controls
+    initializeDataSourceControls();
     
     // Initialize building toggle
     initializeBuildingToggle();
@@ -225,7 +238,12 @@ function initializeWorkflow() {
                     selectedHazard = 'rockfall';
                     console.log('Rockfall hazard selected');
                     
-                    // Remove debris flow layer (mutual exclusivity handled by radio buttons)
+                    // Uncheck debris flow toggle (ensure mutual exclusivity)
+                    if (debrisFlowToggle) {
+                        debrisFlowToggle.checked = false;
+                    }
+                    
+                    // Remove debris flow layer from map
                     if (typeof removeDebrisFlowLayer === 'function') {
                         removeDebrisFlowLayer();
                     }
@@ -234,7 +252,19 @@ function initializeWorkflow() {
                     if (typeof addRockfallLayer === 'function') {
                         addRockfallLayer();
                     }
+                } else {
+                    // If unchecked, remove rockfall layer
+                    selectedHazard = null;
+                    if (typeof removeRockfallLayer === 'function') {
+                        removeRockfallLayer();
+                    }
                 }
+                
+                // Update data source display when hazard selection changes
+                if (typeof updateDataSourceDisplay === 'function') {
+                    updateDataSourceDisplay();
+                }
+                
                 checkWorkflowProgress();
             });
         }
@@ -245,7 +275,12 @@ function initializeWorkflow() {
                     selectedHazard = 'debris-flow';
                     console.log('Debris flow hazard selected');
                     
-                    // Remove rockfall layer (mutual exclusivity handled by radio buttons)
+                    // Uncheck rockfall toggle (ensure mutual exclusivity)
+                    if (rockfallToggle) {
+                        rockfallToggle.checked = false;
+                    }
+                    
+                    // Remove rockfall layer from map
                     if (typeof removeRockfallLayer === 'function') {
                         removeRockfallLayer();
                     }
@@ -254,9 +289,477 @@ function initializeWorkflow() {
                     if (typeof addDebrisFlowLayer === 'function') {
                         addDebrisFlowLayer();
                     }
+                } else {
+                    // If unchecked, remove debris flow layer
+                    selectedHazard = null;
+                    if (typeof removeDebrisFlowLayer === 'function') {
+                        removeDebrisFlowLayer();
+                    }
                 }
+                
+                // Update data source display when hazard selection changes
+                if (typeof updateDataSourceDisplay === 'function') {
+                    updateDataSourceDisplay();
+                }
+                
                 checkWorkflowProgress();
             });
+        }
+    }
+    
+    // Data source controls functionality
+    function initializeDataSourceControls() {
+        const dataSourceSelect = document.getElementById('data-source-select');
+        const uploadSection = document.getElementById('upload-section');
+        const uploadInput = document.getElementById('custom-data-upload');
+        
+        // Initialize data source controls if elements exist
+        if (dataSourceSelect) {
+            // Handle data source dropdown change
+            dataSourceSelect.addEventListener('change', function() {
+                updateDataSourceDisplay();
+            });
+            
+            // Initialize display on page load
+            updateDataSourceDisplay();
+        }
+        
+        if (uploadInput) {
+            // Handle file input change to update label
+            uploadInput.addEventListener('change', function() {
+                const fileName = this.value.split('\\').pop();
+                const fileLabel = this.parentElement.querySelector('.custom-file-label');
+                if (fileLabel) {
+                    fileLabel.textContent = fileName || 'Choose file...';
+                }
+                
+                // Process uploaded file
+                if (this.files && this.files[0]) {
+                    processCustomDataFile(this.files[0]);
+                }
+            });
+        }
+        
+        // Function to update data source display based on selections
+        function updateDataSourceDisplay() {
+            const dataSourceSelectElement = document.getElementById('data-source-select');
+            if (!dataSourceSelectElement) return; // Exit if element doesn't exist
+            
+            const selectedValue = dataSourceSelectElement.value;
+            const fileLabel = document.querySelector('.custom-file-label');
+            const hazardSelected = checkHazardSelection();
+            
+            if (selectedValue === 'custom') {
+                // Show upload section
+                const uploadSection = document.getElementById('upload-section');
+                if (uploadSection) uploadSection.style.display = 'block';
+                
+                // Enable upload only if hazard is selected
+                const uploadInput = document.getElementById('custom-data-upload');
+                if (uploadInput) {
+                    uploadInput.disabled = !hazardSelected;
+                    if (!hazardSelected) {
+                        uploadInput.value = '';
+                        if (fileLabel) fileLabel.textContent = 'Select a hazard type first...';
+                    } else {
+                        if (fileLabel) fileLabel.textContent = 'Choose file...';
+                    }
+                }
+            } else {
+                // Hide upload section and disable upload button
+                const uploadSection = document.getElementById('upload-section');
+                if (uploadSection) uploadSection.style.display = 'none';
+                const uploadInput = document.getElementById('custom-data-upload');
+                if (uploadInput) {
+                    uploadInput.disabled = true;
+                    uploadInput.value = ''; // Clear any selected file
+                }
+                if (fileLabel) fileLabel.textContent = 'Choose file...';
+            }
+        }
+        
+        // Make updateDataSourceDisplay globally available for hazard toggle callbacks
+        window.updateDataSourceDisplay = updateDataSourceDisplay;
+        
+        // Function to check if a hazard is selected
+        function checkHazardSelection() {
+            const hazardToggles = document.querySelectorAll('input[name="hazard-type"]');
+            return Array.from(hazardToggles).some(toggle => toggle.checked);
+        }
+        
+        // Function to process uploaded custom data file
+        function processCustomDataFile(file) {
+            console.log('📁 Processing custom data file:', file.name);
+            
+            // Check file type
+            if (!file.name.toLowerCase().endsWith('.geojson') && !file.name.toLowerCase().endsWith('.json')) {
+                alert('⚠️ Please upload a GeoJSON file (.geojson or .json)');
+                return;
+            }
+            
+            // Get selected hazard type
+            const selectedHazard = getSelectedHazardType();
+            if (!selectedHazard) {
+                alert('⚠️ Please select a hazard type first');
+                return;
+            }
+            
+            // Show loading feedback
+            console.log('⏳ Reading file...');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    console.log('⏳ Parsing GeoJSON...');
+                    const geojsonData = JSON.parse(e.target.result);
+                    
+                    // Validate GeoJSON structure
+                    if (!geojsonData.type || geojsonData.type !== 'FeatureCollection') {
+                        alert('⚠️ Invalid GeoJSON format. Expected FeatureCollection.');
+                        return;
+                    }
+                    
+                    if (!geojsonData.features || geojsonData.features.length === 0) {
+                        alert('⚠️ No features found in the GeoJSON file.');
+                        return;
+                    }
+                    
+                    console.log(`✅ Loaded ${geojsonData.features?.length || 0} features for ${selectedHazard}`);
+                    
+                    // Load custom data to map with timeout to prevent blocking
+                    setTimeout(() => {
+                        try {
+                            loadCustomDataToMap(geojsonData, selectedHazard);
+                        } catch (error) {
+                            console.error('❌ Error loading custom data to map:', error);
+                            alert('⚠️ Error loading data to map. Please check the console for details.');
+                        }
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('❌ Error parsing GeoJSON file:', error);
+                    alert('⚠️ Error parsing GeoJSON file. Please check the file format.');
+                }
+            };
+            
+            reader.onerror = function(error) {
+                console.error('❌ Error reading file:', error);
+                alert('⚠️ Error reading file. Please try again.');
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // Function to get selected hazard type
+        function getSelectedHazardType() {
+            const hazardToggles = document.querySelectorAll('input[name="hazard-type"]');
+            for (let toggle of hazardToggles) {
+                if (toggle.checked) {
+                    return toggle.value;
+                }
+            }
+            return null;
+        }
+        
+        // Function to load custom data to map
+        function loadCustomDataToMap(geojsonData, hazardType) {
+            console.log(`🗺️ Loading custom ${hazardType} data to map...`);
+            
+            try {
+                // Remove existing hazard layers first
+                if (typeof removeRockfallLayer === 'function') {
+                    removeRockfallLayer();
+                }
+                if (typeof removeDebrisFlowLayer === 'function') {
+                    removeDebrisFlowLayer();
+                }
+                
+                // Detect coordinate system and transform if needed
+                console.log('⏳ Detecting and transforming coordinates...');
+                const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
+                
+                // Check if transformation was successful
+                if (!transformedGeoJSON) {
+                    console.error('❌ Coordinate transformation failed');
+                    alert('⚠️ Failed to process coordinates. Please check the coordinate system.');
+                    return;
+                }
+                
+                if (!transformedGeoJSON.features || transformedGeoJSON.features.length === 0) {
+                    console.error('❌ No features after transformation');
+                    alert('⚠️ No valid features found after coordinate processing.');
+                    return;
+                }
+                
+                console.log('⏳ Creating Leaflet layer...');
+                // Create custom layer using existing styling patterns
+                const customLayer = L.geoJSON(transformedGeoJSON, {
+                    style: function(feature) {
+                        try {
+                            // Use styling similar to existing hazard layers
+                            if (hazardType === 'rockfall') {
+                                const intensity = feature.properties.intensity_ || feature.properties.intensity || 'unknown';
+                                let color, fillOpacity;
+                                
+                                switch(intensity.toLowerCase()) {
+                                    case 'high':
+                                        color = '#d73027';
+                                        fillOpacity = 0.8;
+                                        break;
+                                    case 'medium':
+                                    case 'mean':
+                                        color = '#fcf11bff';
+                                        fillOpacity = 0.6;
+                                        break;
+                                    case 'low':
+                                        color = '#4575b4';
+                                        fillOpacity = 0.4;
+                                        break;
+                                    default:
+                                        color = '#d73027'; // Default rockfall color
+                                        fillOpacity = 0.6;
+                                }
+                                
+                                return {
+                                    color: color,
+                                    weight: 1,
+                                    opacity: 1,
+                                    fillColor: color,
+                                    fillOpacity: fillOpacity
+                                };
+                            } else if (hazardType === 'debris-flow') {
+                                const intensity = feature.properties.intensity_ || feature.properties.intensity || 'unknown';
+                                let color, fillOpacity;
+                                
+                                switch(intensity.toLowerCase()) {
+                                    case 'high':
+                                        color = '#c02015ff';
+                                        fillOpacity = 0.8;
+                                        break;
+                                    case 'medium':
+                                    case 'mean':
+                                        color = '#e5d718ff';
+                                        fillOpacity = 0.6;
+                                        break;
+                                    case 'low':
+                                        color = '#2979ceff';
+                                        fillOpacity = 0.4;
+                                        break;
+                                    default:
+                                        color = '#2979ce'; // Default debris flow color
+                                        fillOpacity = 0.6;
+                                }
+                                
+                                return {
+                                    color: color,
+                                    weight: 1,
+                                    opacity: 1,
+                                    fillColor: color,
+                                    fillOpacity: fillOpacity
+                                };
+                            }
+                        } catch (styleError) {
+                            console.warn('⚠️ Error in styling feature:', styleError);
+                            // Return default style
+                            return {
+                                color: hazardType === 'rockfall' ? '#d73027' : '#2979ce',
+                                weight: 1,
+                                opacity: 1,
+                                fillColor: hazardType === 'rockfall' ? '#d73027' : '#2979ce',
+                                fillOpacity: 0.6
+                            };
+                        }
+                    },
+                    onEachFeature: function(feature, layer) {
+                        try {
+                            // Create popup with available properties
+                            const props = feature.properties || {};
+                            const hazardIcon = hazardType === 'rockfall' ? '🪨' : '🌊';
+                            let popupContent = `<div style="font-size: 12px;"><h4>${hazardIcon} Custom ${hazardType.replace('-', ' ')} Data</h4>`;
+                            
+                            // Display intensity if available
+                            if (props.intensity_ || props.intensity) {
+                                popupContent += `<p><strong>Intensity:</strong> ${props.intensity_ || props.intensity}</p>`;
+                            }
+                            
+                            // Display return period if available
+                            if (props.return_per || props.return_period) {
+                                popupContent += `<p><strong>Return Period:</strong> ${props.return_per || props.return_period} years</p>`;
+                            }
+                            
+                            // Display other available properties
+                            Object.keys(props).forEach(key => {
+                                if (key !== 'intensity_' && key !== 'intensity' && key !== 'return_per' && key !== 'return_period' &&
+                                    props[key] !== null && props[key] !== undefined && props[key] !== '') {
+                                    popupContent += `<p><strong>${key.replace('_', ' ')}:</strong> ${props[key]}</p>`;
+                                }
+                            });
+                            
+                            popupContent += '</div>';
+                            layer.bindPopup(popupContent);
+                        } catch (popupError) {
+                            console.warn('⚠️ Error creating popup for feature:', popupError);
+                            layer.bindPopup(`<div style="font-size: 12px;"><h4>${hazardType === 'rockfall' ? '🪨' : '🌊'} Custom ${hazardType.replace('-', ' ')} Data</h4><p>Feature data available</p></div>`);
+                        }
+                    }
+                });
+                
+                // Add to map and assign to the appropriate global variable
+                if (window.map) {
+                    console.log('⏳ Adding layer to map...');
+                    customLayer.addTo(window.map);
+                    
+                    // Assign to existing global variables used by the application
+                    if (hazardType === 'rockfall') {
+                        // Use the same global variable as the API rockfall layer
+                        window.rockfallLayer = customLayer;
+                        rockfallLayer = customLayer; // Also assign to local variable
+                        console.log('✅ Custom rockfall data assigned to rockfallLayer');
+                    } else if (hazardType === 'debris-flow') {
+                        // Use the same global variable as the API debris flow layer
+                        window.debrisFlowLayer = customLayer;
+                        debrisFlowLayer = customLayer; // Also assign to local variable
+                        console.log('✅ Custom debris flow data assigned to debrisFlowLayer');
+                    }
+                    
+                    // Fit map to custom data bounds
+                    console.log('⏳ Fitting map to bounds...');
+                    if (customLayer.getBounds && customLayer.getBounds().isValid()) {
+                        window.map.fitBounds(customLayer.getBounds());
+                    }
+                    
+                    console.log(`✅ Custom ${hazardType.replace('-', ' ')} data loaded with ${transformedGeoJSON.features.length} features`);
+                    alert(`✅ Custom ${hazardType.replace('-', ' ')} data loaded successfully!`);
+                } else {
+                    console.error('❌ Map not available');
+                    alert('⚠️ Map not available. Please refresh the page and try again.');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error in loadCustomDataToMap:', error);
+                alert('⚠️ Error loading custom data to map: ' + error.message);
+            }
+        }
+        
+        // Function to detect coordinate system and transform if needed
+        function detectAndTransformCoordinates(geojsonData) {
+            console.log('🔍 Detecting coordinate system...');
+            
+            try {
+                if (!geojsonData || !geojsonData.features || geojsonData.features.length === 0) {
+                    console.warn('⚠️ No features to process');
+                    return geojsonData;
+                }
+                
+                // Sample first coordinate to detect CRS
+                const firstFeature = geojsonData.features[0];
+                
+                // Quick validation without stopping
+                if (!firstFeature || !firstFeature.geometry || !firstFeature.geometry.coordinates) {
+                    console.warn('⚠️ Invalid feature structure, using original coordinates');
+                    return geojsonData;
+                }
+                
+                // Skip detailed logging to avoid debugger interference
+                
+                // Get sample coordinate based on geometry type
+                let sampleCoord = null;
+                const coords = firstFeature.geometry.coordinates;
+                
+                switch (firstFeature.geometry.type) {
+                    case 'Point':
+                        sampleCoord = coords;
+                        break;
+                    case 'Polygon':
+                        sampleCoord = coords && coords[0] && coords[0][0] ? coords[0][0] : null;
+                        break;
+                    case 'MultiPolygon':
+                        sampleCoord = coords && coords[0] && coords[0][0] && coords[0][0][0] ? coords[0][0][0] : null;
+                        break;
+                    case 'LineString':
+                        sampleCoord = coords && coords[0] ? coords[0] : null;
+                        break;
+                    default:
+                        console.warn('⚠️ Unsupported geometry type:', firstFeature.geometry.type);
+                        return geojsonData;
+                }
+                
+                if (!sampleCoord || !Array.isArray(sampleCoord) || sampleCoord.length < 2) {
+                    console.warn('⚠️ Could not extract valid coordinate, using original data');
+                    return geojsonData;
+                }
+                
+                const [x, y] = sampleCoord;
+                console.log(`📍 Sample coordinate: [${x}, ${y}]`);
+                
+                // Quick coordinate system detection
+                let isSwissCoordinates = false;
+                
+                // Swiss LV95 detection: X: 2.4M-3M, Y: 1M-1.4M
+                if (x >= 2400000 && x <= 3000000 && y >= 1000000 && y <= 1400000) {
+                    isSwissCoordinates = true;
+                    console.log('🇨🇭 Swiss LV95 detected');
+                } else if (x >= -180 && x <= 180 && y >= -90 && y <= 90) {
+                    console.log('🌍 WGS84 detected');
+                } else {
+                    console.warn('⚠️ Unknown CRS, assuming WGS84');
+                }
+                
+                // Transform if needed
+                if (isSwissCoordinates && typeof swissToWGS84 === 'function') {
+                    console.log('🔄 Converting Swiss → WGS84...');
+                    return transformSwissToWGS84(geojsonData);
+                } else if (isSwissCoordinates) {
+                    console.error('❌ Swiss coordinates detected but no transformation function');
+                    alert('⚠️ Swiss coordinates detected but transformation not available. Please use WGS84.');
+                    return geojsonData;
+                } else {
+                    console.log('✅ Using coordinates as WGS84');
+                    return geojsonData;
+                }
+                
+            } catch (error) {
+                console.error('❌ Error in coordinate detection:', error);
+                return geojsonData;
+            }
+        }
+        
+        // Separate function for Swiss coordinate transformation
+        function transformSwissToWGS84(geojsonData) {
+            try {
+                const transformedFeatures = geojsonData.features.map((feature, index) => {
+                    const newFeature = { ...feature };
+                    
+                    function transformCoordArray(coords) {
+                        if (typeof coords[0] === 'number' && coords.length >= 2) {
+                            const [east, north] = coords;
+                            if (!isNaN(east) && !isNaN(north)) {
+                                const wgs84 = swissToWGS84(east, north);
+                                return [wgs84.lng, wgs84.lat];
+                            }
+                        }
+                        return Array.isArray(coords) ? coords.map(transformCoordArray) : coords;
+                    }
+                    
+                    if (newFeature.geometry && newFeature.geometry.coordinates) {
+                        newFeature.geometry = {
+                            ...feature.geometry,
+                            coordinates: transformCoordArray(feature.geometry.coordinates)
+                        };
+                    }
+                    
+                    return newFeature;
+                });
+                
+                console.log('✅ Transformation completed');
+                return {
+                    type: "FeatureCollection",
+                    features: transformedFeatures
+                };
+            } catch (error) {
+                console.error('❌ Transformation error:', error);
+                return geojsonData;
+            }
         }
     }
     
@@ -1480,6 +1983,9 @@ function zoomToAdministrativeArea(type, name) {
 function createSelectionHighlight(features, type, name) {
     if (!features || features.length === 0) return;
     
+    // Remove previous selection first (ensure only one selection at a time)
+    removeSelectionHighlight();
+    
     // Create GeoJSON object for highlighting
     const highlightGeoJSON = {
         type: "FeatureCollection",
@@ -1519,11 +2025,35 @@ function createSelectionHighlight(features, type, name) {
     // Add the highlight layer to the map
     currentSelectionLayer.addTo(window.map);
     
+    // Zoom to the selected area
+    const bounds = currentSelectionLayer.getBounds();
+    if (bounds.isValid()) {
+        window.map.fitBounds(bounds, {
+            padding: [20, 20],
+            maxZoom: type === 'commune' ? 13 : 10  // Closer zoom for communes
+        });
+        console.log(`🎯 Zoomed to selected ${type}: ${name}`);
+    }
+    
+    // Add to layer control for toggle functionality
+    if (window.ctlLayers) {
+        const layerName = `🎯 Selected ${type.charAt(0).toUpperCase() + type.slice(1)}: ${name}`;
+        
+        // Debug: Check if layer control exists and log current state
+        console.log(`📋 Adding '${layerName}' to layer control`);
+        console.log(`📋 Current layer control exists:`, !!window.ctlLayers);
+        console.log(`📋 Current layer being added:`, currentSelectionLayer);
+        
+        window.ctlLayers.addOverlay(currentSelectionLayer, layerName);
+        console.log(`📋 Successfully added '${layerName}' to layer control`);
+    }
+    
     // Store reference to the selection for later removal
     window.currentAdministrativeSelection = {
         type: type,
         name: name,
-        layer: currentSelectionLayer
+        layer: currentSelectionLayer,
+        layerName: layerName
     };
     
     console.log(`🎯 Added yellow highlight for selected ${type}: ${name}`);
@@ -1533,11 +2063,33 @@ function createSelectionHighlight(features, type, name) {
  * Remove the current selection highlight layer
  */
 function removeSelectionHighlight() {
+    console.log('🧹 removeSelectionHighlight called');
+    console.log('🧹 currentSelectionLayer exists:', !!currentSelectionLayer);
+    console.log('🧹 window.map exists:', !!window.map);
+    
     if (currentSelectionLayer && window.map) {
+        // Remove from map first
+        console.log('🧹 Removing layer from map...');
         window.map.removeLayer(currentSelectionLayer);
+        
+        // Remove from layer control - need to remove the actual layer object
+        if (window.ctlLayers && currentSelectionLayer) {
+            try {
+                console.log('🧹 Attempting to remove layer from control...');
+                // This is the correct way to remove a layer from Leaflet layer control
+                window.ctlLayers.removeLayer(currentSelectionLayer);
+                console.log(`📋 Successfully removed selection layer from layer control`);
+            } catch (error) {
+                console.warn('⚠️ Could not remove layer from control:', error);
+            }
+        }
+        
+        // Clean up references
         currentSelectionLayer = null;
         window.currentAdministrativeSelection = null;
-        console.log('🧹 Removed previous selection highlight');
+        console.log('🧹 Cleaned up references - selection highlight removed');
+    } else {
+        console.log('🧹 No current selection layer to remove');
     }
 }
 

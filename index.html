@@ -80,10 +80,76 @@
                 <div class="workflow-panel">
                     <h3 class="workflow-title">Risk Analysis Workflow</h3>
                     
-                    <!-- 1. Location Section -->
+                    <!-- 1. Data Source Section -->
                     <div class="workflow-section">
                         <h4 class="section-title">
                             <span class="step-number">1</span>
+                            Data Source
+                        </h4>
+                        <div class="section-content">
+                            <div class="form-group">
+                                <label for="data-source-select">Select Data Source</label>
+                                <select id="data-source-select" class="form-control">
+                                    <option value="api">Swiss API Data</option>
+                                    <option value="custom">Upload Custom Data</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Upload Section (hidden by default) -->
+                            <div id="upload-section" style="display: none;">
+                                <div class="form-group">
+                                    <label for="custom-data-upload">Upload Custom Data</label>
+                                    <div class="custom-file">
+                                        <input type="file" class="custom-file-input" id="custom-data-upload" accept=".geojson,.json" disabled>
+                                        <label class="custom-file-label" for="custom-data-upload">Choose file...</label>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        Select a hazard type first, then upload GeoJSON file
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 2. Hazard Maps Section -->
+                    <div class="workflow-section">
+                        <h4 class="section-title">
+                            <span class="step-number">2</span>
+                            Hazard Maps
+                        </h4>
+                        <div class="section-content">
+                            <!-- Rockfall Toggle -->
+                            <div class="hazard-toggle">
+                                <label class="toggle-container">
+                                    <span class="toggle-label">Rockfall Hazard</span>
+                                    <label class="switch">
+                                        <input type="radio" name="hazard-type" id="rockfall-toggle" value="rockfall">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </label>
+                            </div>
+                            
+                            <!-- Debris Flow Toggle -->
+                            <div class="hazard-toggle">
+                                <label class="toggle-container">
+                                    <span class="toggle-label">Debris Flow Hazard</span>
+                                    <label class="switch">
+                                        <input type="radio" name="hazard-type" id="debris-flow-toggle" value="debris-flow">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </label>
+                            </div>
+                            
+                            <small class="form-text text-muted">
+                                Only one hazard type can be displayed at a time
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <!-- 3. Location Section -->
+                    <div class="workflow-section">
+                        <h4 class="section-title">
+                            <span class="step-number">3</span>
                             Location
                         </h4>
                         <div class="section-content">
@@ -122,45 +188,10 @@
                         </div>
                     </div>
                     
-                    <!-- 2. Hazards Section -->
+                    <!-- 4. Buildings Section -->
                     <div class="workflow-section">
                         <h4 class="section-title">
-                            <span class="step-number">2</span>
-                            Hazard Maps
-                        </h4>
-                        <div class="section-content">
-                            <!-- Rockfall Toggle -->
-                            <div class="hazard-toggle">
-                                <label class="toggle-container">
-                                    <span class="toggle-label">Rockfall Hazard</span>
-                                    <label class="switch">
-                                        <input type="radio" name="hazard-type" id="rockfall-toggle" value="rockfall">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </label>
-                            </div>
-                            
-                            <!-- Debris Flow Toggle -->
-                            <div class="hazard-toggle">
-                                <label class="toggle-container">
-                                    <span class="toggle-label">Debris Flow Hazard</span>
-                                    <label class="switch">
-                                        <input type="radio" name="hazard-type" id="debris-flow-toggle" value="debris-flow">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </label>
-                            </div>
-                            
-                            <small class="form-text text-muted">
-                                Only one hazard type can be displayed at a time
-                            </small>
-                        </div>
-                    </div>
-                    
-                    <!-- 3. Buildings Section -->
-                    <div class="workflow-section">
-                        <h4 class="section-title">
-                            <span class="step-number">3</span>
+                            <span class="step-number">4</span>
                             Buildings
                         </h4>
                         <div class="section-content">
@@ -180,10 +211,10 @@
                         </div>
                     </div>
                     
-                    <!-- 4. Vulnerability Section -->
+                    <!-- 5. Vulnerability Section -->
                     <div class="workflow-section">
                         <h4 class="section-title">
-                            <span class="step-number">4</span>
+                            <span class="step-number">5</span>
                             Vulnerability
                         </h4>
                         <div class="section-content">
@@ -198,10 +229,10 @@
                         </div>
                     </div>
                     
-                    <!-- 5. Analysis Section -->
+                    <!-- 6. Analysis Section -->
                     <div class="workflow-section">
                         <h4 class="section-title">
-                            <span class="step-number">5</span>
+                            <span class="step-number">6</span>
                             Analysis
                         </h4>
                         <div class="section-content">
@@ -216,7 +247,7 @@
                             </div>
                             
                             <small class="form-text text-muted">
-                                Complete steps 1-4 to enable analysis
+                                Complete steps 1-5 to enable analysis
                             </small>
                         </div>
                     </div>

@@ -64,8 +64,8 @@ html, body {
 
 .header h4 {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 1.2rem;
+    font-weight: 500;
     color: var(--text-color);
 }
 
@@ -166,12 +166,12 @@ html, body {
 }
 
 .reset-btn {
-    background: #f5f5f5;
-    border: 2px solid #ccc;
+    background: rgba(236, 232, 232, 0.15);
+    border-color: #b43c17;    
     border-radius: 8px;
     padding: 8px 12px;
     font-size: 1.2rem;
-    color: #333;
+    color: white;
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;

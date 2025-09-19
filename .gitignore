@@ -2,6 +2,7 @@
 index1.html
 git-commands-reference.txt
 src/js/map-3d.js
+src/js/functions_2.js
 
 # Development folders (for reference only)
 src/php/
@@ -55,3 +56,6 @@ temp/
 
 # Documentation (for reference only)
 docs/
+
+# PDF files
+data/pdf/

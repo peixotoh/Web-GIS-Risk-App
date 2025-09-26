@@ -123,8 +123,8 @@ function removeAllLayers() {
 
 function resetMapView() {
     if (window.map) {
-        // Reset to Switzerland extent or default view
-        window.map.setView([46.8182, 8.2275], 9); // Center of Switzerland
+        // Reset to world view, unrestricted
+        window.map.setView([20, 0], 2); // Center on world, zoomed out
     }
 }
 
@@ -150,7 +150,7 @@ function initializeWorkflow() {
     
     // Variables to track workflow state
     let selectedLocation = null;
-    let selectedHazard = null;
+    let selectedHazard = 'rockfall'; // Default to rockfall hazard
     let buildingsEnabled = false;
     let drawnPolygons = [];
     
@@ -231,77 +231,40 @@ function initializeWorkflow() {
     function initializeHazardToggles() {
         const rockfallToggle = document.getElementById('rockfall-toggle');
         const debrisFlowToggle = document.getElementById('debris-flow-toggle');
-        
+
+        // Select rockfall hazard by default
+        if (rockfallToggle) {
+            rockfallToggle.checked = true;
+            selectedHazard = 'rockfall';
+        }
+
         if (rockfallToggle) {
             rockfallToggle.addEventListener('change', function(e) {
                 if (e.target.checked) {
                     selectedHazard = 'rockfall';
                     console.log('Rockfall hazard selected');
-                    
-                    // Uncheck debris flow toggle (ensure mutual exclusivity)
-                    if (debrisFlowToggle) {
-                        debrisFlowToggle.checked = false;
-                    }
-                    
-                    // Remove debris flow layer from map
-                    if (typeof removeDebrisFlowLayer === 'function') {
-                        removeDebrisFlowLayer();
-                    }
-                    
-                    // Add rockfall layer to map
-                    if (typeof addRockfallLayer === 'function') {
-                        addRockfallLayer();
-                    }
+                    if (debrisFlowToggle) debrisFlowToggle.checked = false;
                 } else {
-                    // If unchecked, remove rockfall layer
                     selectedHazard = null;
-                    if (typeof removeRockfallLayer === 'function') {
-                        removeRockfallLayer();
-                    }
                 }
-                
-                // Update data source display when hazard selection changes
                 if (typeof updateDataSourceDisplay === 'function') {
                     updateDataSourceDisplay();
                 }
-                
                 checkWorkflowProgress();
             });
         }
-        
         if (debrisFlowToggle) {
             debrisFlowToggle.addEventListener('change', function(e) {
                 if (e.target.checked) {
                     selectedHazard = 'debris-flow';
                     console.log('Debris flow hazard selected');
-                    
-                    // Uncheck rockfall toggle (ensure mutual exclusivity)
-                    if (rockfallToggle) {
-                        rockfallToggle.checked = false;
-                    }
-                    
-                    // Remove rockfall layer from map
-                    if (typeof removeRockfallLayer === 'function') {
-                        removeRockfallLayer();
-                    }
-                    
-                    // Add debris flow layer to map
-                    if (typeof addDebrisFlowLayer === 'function') {
-                        addDebrisFlowLayer();
-                    }
+                    if (rockfallToggle) rockfallToggle.checked = false;
                 } else {
-                    // If unchecked, remove debris flow layer
                     selectedHazard = null;
-                    if (typeof removeDebrisFlowLayer === 'function') {
-                        removeDebrisFlowLayer();
-                    }
                 }
-                
-                // Update data source display when hazard selection changes
                 if (typeof updateDataSourceDisplay === 'function') {
                     updateDataSourceDisplay();
                 }
-                
                 checkWorkflowProgress();
             });
         }
@@ -310,20 +273,48 @@ function initializeWorkflow() {
     // Data source controls functionality
     function initializeDataSourceControls() {
         const dataSourceSelect = document.getElementById('data-source-select');
-        const uploadSection = document.getElementById('upload-section');
+        const uploadSection = document.getElementById('custom-upload-section');
+        const hazardUploadInput = document.getElementById('custom-hazard-upload');
+        const buildingUploadInput = document.getElementById('custom-building-upload');
+
+        // remove after assign hazard and buil options
         const uploadInput = document.getElementById('custom-data-upload');
         
         // Initialize data source controls if elements exist
         if (dataSourceSelect) {
-            // Handle data source dropdown change
-            dataSourceSelect.addEventListener('change', function() {
-                updateDataSourceDisplay();
-            });
-            
-            // Initialize display on page load
+            dataSourceSelect.onchange = updateDataSourceDisplay;
             updateDataSourceDisplay();
         }
         
+        // -------------handling hazards file upload
+        if(hazardUploadInput){
+            hazardUploadInput.onchange = function() {
+                const fileName = this.value.split('\\').pop();
+                const fileLabel = this.parentElement.querySelector('.custom-file-label');
+                if (fileLabel) {
+                    fileLabel.textContent = fileName || 'Choose file...';
+                }
+                if (this.files && this.files[0]) {
+                    processCustomDataFile(this.files[0]);
+                }
+            }
+        }
+
+        // -------------handling buildings file upload
+        if(buildingUploadInput){
+            buildingUploadInput.onchange = function() {
+                const fileName = this.value.split('\\').pop();
+                const fileLabel = this.parentElement.querySelector('.custom-file-label');
+                if (fileLabel) {
+                    fileLabel.textContent = fileName || 'Choose file...';
+                }
+                if (this.files && this.files[0]) {
+                    processCustomDataFile(this.files[0]);
+                }
+            }
+        }
+
+
         if (uploadInput) {
             // Handle file input change to update label
             uploadInput.addEventListener('change', function() {
@@ -343,36 +334,60 @@ function initializeWorkflow() {
         // Function to update data source display based on selections
         function updateDataSourceDisplay() {
             const dataSourceSelectElement = document.getElementById('data-source-select');
-            if (!dataSourceSelectElement) return; // Exit if element doesn't exist
-            
-            const selectedValue = dataSourceSelectElement.value;
+            const uploadSection = document.getElementById('custom-upload-section');
+            const suisseSection = document.getElementById('suisse-data-section');
+        
+            const hazardUploadInput = document.getElementById('custom-hazard-upload');
+            const buildingUploadInput = document.getElementById('custom-building-upload');
+        
             const fileLabel = document.querySelector('.custom-file-label');
             const hazardSelected = checkHazardSelection();
-            
+        
+            if (!dataSourceSelectElement) return;
+        
+            const selectedValue = dataSourceSelectElement.value;
+            console.log('selected value data source:', selectedValue);
+            console.log('hazard selected:', hazardSelected);
+        
             if (selectedValue === 'custom') {
-                // Show upload section
-                const uploadSection = document.getElementById('upload-section');
+                // Show upload section, hide Swiss section
                 if (uploadSection) uploadSection.style.display = 'block';
-                
-                // Enable upload only if hazard is selected
-                const uploadInput = document.getElementById('custom-data-upload');
-                if (uploadInput) {
-                    uploadInput.disabled = !hazardSelected;
+                if (suisseSection) suisseSection.style.display = 'none';
+        
+                // Enable hazard/building upload only if hazard is selected
+                if (hazardUploadInput && buildingUploadInput) {
+                    hazardUploadInput.disabled = !hazardSelected;
+                    buildingUploadInput.disabled = !hazardSelected;
                     if (!hazardSelected) {
-                        uploadInput.value = '';
+                        hazardUploadInput.value = '';
+                        buildingUploadInput.value = '';
                         if (fileLabel) fileLabel.textContent = 'Select a hazard type first...';
                     } else {
                         if (fileLabel) fileLabel.textContent = 'Choose file...';
                     }
                 }
-            } else {
-                // Hide upload section and disable upload button
-                const uploadSection = document.getElementById('upload-section');
+            } else if (selectedValue === 'api') {
+                // Show Swiss section, hide upload section
                 if (uploadSection) uploadSection.style.display = 'none';
-                const uploadInput = document.getElementById('custom-data-upload');
-                if (uploadInput) {
-                    uploadInput.disabled = true;
-                    uploadInput.value = ''; // Clear any selected file
+                if (suisseSection) suisseSection.style.display = 'block';
+        
+                // Disable hazard/building upload
+                if (hazardUploadInput && buildingUploadInput) {
+                    hazardUploadInput.disabled = true;
+                    buildingUploadInput.disabled = true;
+                    hazardUploadInput.value = '';
+                    buildingUploadInput.value = '';
+                    if (fileLabel) fileLabel.textContent = 'Choose file...';
+                }
+            } else {
+                // Default: show Swiss section, hide upload section
+                if (uploadSection) uploadSection.style.display = 'none';
+                if (suisseSection) suisseSection.style.display = 'block';
+                if (hazardUploadInput && buildingUploadInput) {
+                    hazardUploadInput.disabled = true;
+                    buildingUploadInput.disabled = true;
+                    hazardUploadInput.value = '';
+                    buildingUploadInput.value = '';
                 }
                 if (fileLabel) fileLabel.textContent = 'Choose file...';
             }
@@ -390,63 +405,71 @@ function initializeWorkflow() {
         // Function to process uploaded custom data file
         function processCustomDataFile(file) {
             console.log('📁 Processing custom data file:', file.name);
-            
             // Check file type
             if (!file.name.toLowerCase().endsWith('.geojson') && !file.name.toLowerCase().endsWith('.json')) {
                 alert('⚠️ Please upload a GeoJSON file (.geojson or .json)');
                 return;
             }
-            
-            // Get selected hazard type
-            const selectedHazard = getSelectedHazardType();
-            if (!selectedHazard) {
-                alert('⚠️ Please select a hazard type first');
-                return;
+            // Determine input type (hazard or building)
+            let isBuildingUpload = false;
+            if (file.inputId === 'custom-building-upload' || (file.target && file.target.id === 'custom-building-upload')) {
+                isBuildingUpload = true;
             }
-            
+            // For buildings, no hazard selection required
+            if (!isBuildingUpload) {
+                const selectedHazard = getSelectedHazardType();
+                if (!selectedHazard) {
+                    alert('⚠️ Please select a hazard type first');
+                    return;
+                }
+            }
             // Show loading feedback
             console.log('⏳ Reading file...');
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     console.log('⏳ Parsing GeoJSON...');
                     const geojsonData = JSON.parse(e.target.result);
-                    
                     // Validate GeoJSON structure
                     if (!geojsonData.type || geojsonData.type !== 'FeatureCollection') {
                         alert('⚠️ Invalid GeoJSON format. Expected FeatureCollection.');
                         return;
                     }
-                    
                     if (!geojsonData.features || geojsonData.features.length === 0) {
                         alert('⚠️ No features found in the GeoJSON file.');
                         return;
                     }
-                    
-                    console.log(`✅ Loaded ${geojsonData.features?.length || 0} features for ${selectedHazard}`);
-                    
-                    // Load custom data to map with timeout to prevent blocking
-                    setTimeout(() => {
-                        try {
-                            loadCustomDataToMap(geojsonData, selectedHazard);
-                        } catch (error) {
-                            console.error('❌ Error loading custom data to map:', error);
-                            alert('⚠️ Error loading data to map. Please check the console for details.');
-                        }
-                    }, 100);
-                    
+                    if (isBuildingUpload) {
+                        console.log(`✅ Loaded ${geojsonData.features?.length || 0} custom building features`);
+                        setTimeout(() => {
+                            try {
+                                loadCustomBuildingsDataToMap(geojsonData);
+                            } catch (error) {
+                                console.error('❌ Error loading custom buildings data to map:', error);
+                                alert('⚠️ Error loading buildings data to map. Please check the console for details.');
+                            }
+                        }, 100);
+                    } else {
+                        const selectedHazard = getSelectedHazardType();
+                        console.log(`✅ Loaded ${geojsonData.features?.length || 0} features for ${selectedHazard}`);
+                        setTimeout(() => {
+                            try {
+                                loadCustomHazardDataToMap(geojsonData, selectedHazard);
+                            } catch (error) {
+                                console.error('❌ Error loading custom hazard data to map:', error);
+                                alert('⚠️ Error loading hazard data to map. Please check the console for details.');
+                            }
+                        }, 100);
+                    }
                 } catch (error) {
                     console.error('❌ Error parsing GeoJSON file:', error);
                     alert('⚠️ Error parsing GeoJSON file. Please check the file format.');
                 }
             };
-            
             reader.onerror = function(error) {
                 console.error('❌ Error reading file:', error);
                 alert('⚠️ Error reading file. Please try again.');
             };
-            
             reader.readAsText(file);
         }
         
@@ -462,9 +485,9 @@ function initializeWorkflow() {
         }
         
         // Function to load custom data to map
-        function loadCustomDataToMap(geojsonData, hazardType) {
+        // Function to load custom hazard data to map
+        function loadCustomHazardDataToMap(geojsonData, hazardType) {
             console.log(`🗺️ Loading custom ${hazardType} data to map...`);
-            
             try {
                 // Remove existing hazard layers first
                 if (typeof removeRockfallLayer === 'function') {
@@ -473,100 +496,67 @@ function initializeWorkflow() {
                 if (typeof removeDebrisFlowLayer === 'function') {
                     removeDebrisFlowLayer();
                 }
-                
                 // Detect coordinate system and transform if needed
                 console.log('⏳ Detecting and transforming coordinates...');
                 const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
-                
                 // Check if transformation was successful
                 if (!transformedGeoJSON) {
                     console.error('❌ Coordinate transformation failed');
                     alert('⚠️ Failed to process coordinates. Please check the coordinate system.');
                     return;
                 }
-                
                 if (!transformedGeoJSON.features || transformedGeoJSON.features.length === 0) {
                     console.error('❌ No features after transformation');
                     alert('⚠️ No valid features found after coordinate processing.');
                     return;
                 }
-                
                 console.log('⏳ Creating Leaflet layer...');
                 // Create custom layer using existing styling patterns
                 const customLayer = L.geoJSON(transformedGeoJSON, {
                     style: function(feature) {
                         try {
-                            // Use styling similar to existing hazard layers
-                            if (hazardType === 'rockfall') {
-                                const intensity = feature.properties.intensity_ || feature.properties.intensity || 'unknown';
-                                let color, fillOpacity;
-                                
-                                switch(intensity.toLowerCase()) {
-                                    case 'high':
-                                        color = '#d73027';
-                                        fillOpacity = 0.8;
-                                        break;
-                                    case 'medium':
-                                    case 'mean':
-                                        color = '#fcf11bff';
-                                        fillOpacity = 0.6;
-                                        break;
-                                    case 'low':
-                                        color = '#4575b4';
-                                        fillOpacity = 0.4;
-                                        break;
-                                    default:
-                                        color = '#d73027'; // Default rockfall color
-                                        fillOpacity = 0.6;
-                                }
-                                
-                                return {
-                                    color: color,
-                                    weight: 1,
-                                    opacity: 1,
-                                    fillColor: color,
-                                    fillOpacity: fillOpacity
-                                };
-                            } else if (hazardType === 'debris-flow') {
-                                const intensity = feature.properties.intensity_ || feature.properties.intensity || 'unknown';
-                                let color, fillOpacity;
-                                
-                                switch(intensity.toLowerCase()) {
-                                    case 'high':
-                                        color = '#c02015ff';
-                                        fillOpacity = 0.8;
-                                        break;
-                                    case 'medium':
-                                    case 'mean':
-                                        color = '#e5d718ff';
-                                        fillOpacity = 0.6;
-                                        break;
-                                    case 'low':
-                                        color = '#2979ceff';
-                                        fillOpacity = 0.4;
-                                        break;
-                                    default:
-                                        color = '#2979ce'; // Default debris flow color
-                                        fillOpacity = 0.6;
-                                }
-                                
-                                return {
-                                    color: color,
-                                    weight: 1,
-                                    opacity: 1,
-                                    fillColor: color,
-                                    fillOpacity: fillOpacity
-                                };
+                            // Use classe_d_intensites for styling polygons
+                            let intensityRaw = feature.properties.classe_d_intensites || feature.properties.intensity_ || feature.properties.intensity || '';
+                            if (typeof intensityRaw !== 'string') intensityRaw = '';
+                            const intensity = intensityRaw.trim().toLowerCase();
+                            let color, fillOpacity;
+                            switch(intensity) {
+                                case 'forte':
+                                case 'high':
+                                    color = '#d73027';
+                                    fillOpacity = 0.8;
+                                    break;
+                                case 'moyenne':
+                                case 'medium':
+                                case 'mean':
+                                    color = '#fcf11bff';
+                                    fillOpacity = 0.6;
+                                    break;
+                                case 'faible':
+                                case 'low':
+                                    color = '#4575b4';
+                                    fillOpacity = 0.4;
+                                    break;
+                                default:
+                                    color = '#999999';
+                                    fillOpacity = 0.3;
                             }
+                            return {
+                                color: color,
+                                weight: 1,
+                                opacity: 1,
+                                fillColor: color,
+                                fillOpacity: fillOpacity
+                            };
                         } catch (styleError) {
                             console.warn('⚠️ Error in styling feature:', styleError);
                             // Return default style
                             return {
-                                color: hazardType === 'rockfall' ? '#d73027' : '#2979ce',
+                                color: '#999999',
                                 weight: 1,
                                 opacity: 1,
-                                fillColor: hazardType === 'rockfall' ? '#d73027' : '#2979ce',
-                                fillOpacity: 0.6
+                                fillColor: '#999999',
+                                fillOpacity: 0.3
                             };
                         }
                     },
@@ -574,70 +564,124 @@ function initializeWorkflow() {
                         try {
                             // Create popup with available properties
                             const props = feature.properties || {};
-                            const hazardIcon = hazardType === 'rockfall' ? '🪨' : '🌊';
-                            let popupContent = `<div style="font-size: 12px;"><h4>${hazardIcon} Custom ${hazardType.replace('-', ' ')} Data</h4>`;
-                            
+                            let popupContent = `<div style="font-size: 12px;"><h4>🪨 Custom Hazard Data</h4>`;
                             // Display intensity if available
-                            if (props.intensity_ || props.intensity) {
-                                popupContent += `<p><strong>Intensity:</strong> ${props.intensity_ || props.intensity}</p>`;
+                            if (props.classe_d_intensites || props.intensity_ || props.intensity) {
+                                popupContent += `<p><strong>Intensity:</strong> ${props.classe_d_intensites || props.intensity_ || props.intensity}</p>`;
                             }
-                            
-                            // Display return period if available
-                            if (props.return_per || props.return_period) {
-                                popupContent += `<p><strong>Return Period:</strong> ${props.return_per || props.return_period} years</p>`;
-                            }
-                            
                             // Display other available properties
                             Object.keys(props).forEach(key => {
-                                if (key !== 'intensity_' && key !== 'intensity' && key !== 'return_per' && key !== 'return_period' &&
+                                if (key !== 'classe_d_intensites' && key !== 'intensity_' && key !== 'intensity' &&
                                     props[key] !== null && props[key] !== undefined && props[key] !== '') {
                                     popupContent += `<p><strong>${key.replace('_', ' ')}:</strong> ${props[key]}</p>`;
                                 }
                             });
-                            
                             popupContent += '</div>';
                             layer.bindPopup(popupContent);
                         } catch (popupError) {
                             console.warn('⚠️ Error creating popup for feature:', popupError);
-                            layer.bindPopup(`<div style="font-size: 12px;"><h4>${hazardType === 'rockfall' ? '🪨' : '🌊'} Custom ${hazardType.replace('-', ' ')} Data</h4><p>Feature data available</p></div>`);
+                            layer.bindPopup(`<div style="font-size: 12px;"><h4>🪨 Custom Hazard Data</h4><p>Feature data available</p></div>`);
                         }
                     }
                 });
-                
                 // Add to map and assign to the appropriate global variable
                 if (window.map) {
                     console.log('⏳ Adding layer to map...');
                     customLayer.addTo(window.map);
-                    
-                    // Assign to existing global variables used by the application
-                    if (hazardType === 'rockfall') {
-                        // Use the same global variable as the API rockfall layer
-                        window.rockfallLayer = customLayer;
-                        rockfallLayer = customLayer; // Also assign to local variable
-                        console.log('✅ Custom rockfall data assigned to rockfallLayer');
-                    } else if (hazardType === 'debris-flow') {
-                        // Use the same global variable as the API debris flow layer
-                        window.debrisFlowLayer = customLayer;
-                        debrisFlowLayer = customLayer; // Also assign to local variable
-                        console.log('✅ Custom debris flow data assigned to debrisFlowLayer');
-                    }
-                    
+                    // Assign to global variable for custom hazard layer
+                    window.customHazardLayer = customLayer;
                     // Fit map to custom data bounds
                     console.log('⏳ Fitting map to bounds...');
                     if (customLayer.getBounds && customLayer.getBounds().isValid()) {
                         window.map.fitBounds(customLayer.getBounds());
                     }
-                    
-                    console.log(`✅ Custom ${hazardType.replace('-', ' ')} data loaded with ${transformedGeoJSON.features.length} features`);
-                    alert(`✅ Custom ${hazardType.replace('-', ' ')} data loaded successfully!`);
+                    console.log(`✅ Custom hazard data loaded with ${transformedGeoJSON.features.length} features`);
+                    alert(`✅ Custom hazard data loaded successfully!`);
                 } else {
                     console.error('❌ Map not available');
                     alert('⚠️ Map not available. Please refresh the page and try again.');
                 }
-                
             } catch (error) {
-                console.error('❌ Error in loadCustomDataToMap:', error);
-                alert('⚠️ Error loading custom data to map: ' + error.message);
+                console.error('❌ Error in loadCustomHazardDataToMap:', error);
+                alert('⚠️ Error loading custom hazard data to map: ' + error.message);
+            // ...existing code...
+        }
+        }
+
+        // Function to load custom buildings data to map
+        function loadCustomBuildingsDataToMap(geojsonData) {
+            console.log('🏢 Loading custom buildings data to map...');
+            try {
+                // Remove existing buildings layer if present
+                if (window.staticBuildingsLayer && window.map) {
+                    window.map.removeLayer(window.staticBuildingsLayer);
+                    window.staticBuildingsLayer = null;
+                }
+                // Detect coordinate system and transform if needed
+                const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
+                if (!transformedGeoJSON || !transformedGeoJSON.features || transformedGeoJSON.features.length === 0) {
+                    alert('⚠️ No valid building features found after coordinate processing.');
+                    return;
+                }
+                // Create Leaflet layer for all geometry types
+                const customBuildingsLayer = L.geoJSON(transformedGeoJSON, {
+                    pointToLayer: function(feature, latlng) {
+                        // Style for building points
+                        return L.circleMarker(latlng, {
+                            radius: 6,
+                            fillColor: '#ff7800',
+                            color: '#000',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    },
+                    style: function(feature) {
+                        // Style for polygons (if any)
+                        return {
+                            color: '#ff7800',
+                            weight: 2,
+                            opacity: 1,
+                            fillColor: '#ffd580',
+                            fillOpacity: 0.5
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        try {
+                            const props = feature.properties || {};
+                            let popupContent = `<div class="building-popup"><h6><strong>🏢 Custom Building</strong></h6>`;
+                            Object.keys(props).forEach(key => {
+                                if (props[key] !== null && props[key] !== undefined && props[key] !== '') {
+                                    popupContent += `<p><strong>${key.replace('_', ' ')}:</strong> ${props[key]}</p>`;
+                                }
+                            });
+                            // Show coordinates for points
+                            if (feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates)) {
+                                const [lng, lat] = feature.geometry.coordinates;
+                                popupContent += `<p><strong>Coordinates:</strong> ${lat?.toFixed(6)}, ${lng?.toFixed(6)}</p>`;
+                            }
+                            popupContent += `</div>`;
+                            layer.bindPopup(popupContent);
+                        } catch (err) {
+                            layer.bindPopup('<div class="building-popup">Custom building feature</div>');
+                        }
+                    }
+                });
+                // Add to map
+                if (window.map) {
+                    customBuildingsLayer.addTo(window.map);
+                    window.staticBuildingsLayer = customBuildingsLayer;
+                    // Fit map to bounds
+                    if (customBuildingsLayer.getBounds && customBuildingsLayer.getBounds().isValid()) {
+                        window.map.fitBounds(customBuildingsLayer.getBounds().pad(0.1));
+                    }
+                    alert(`✅ Custom buildings data loaded successfully! (${transformedGeoJSON.features.length} features)`);
+                } else {
+                    alert('⚠️ Map not available. Please refresh the page and try again.');
+                }
+            } catch (error) {
+                console.error('❌ Error in loadCustomBuildingsDataToMap:', error);
+                alert('⚠️ Error loading custom buildings data to map: ' + error.message);
             }
         }
         
@@ -1205,22 +1249,29 @@ function addRockfallLayer() {
     
     // Create and add the rockfall layer
     if (window.map) {
+        // Debug log for all classe_d_intensites values
+        rockfallGeoJSON.features.forEach(f => {
+            let raw = f.properties.classe_d_intensites;
+            if (typeof raw !== 'string') raw = ''; // alternative syntax --->  raw = typeof raw === 'string' ? raw :'
+            const norm = raw.trim().toLowerCase();
+            console.log('Rockfall feature intensity:', raw, '->', norm);
+        });
         rockfallLayer = L.geoJSON(rockfallGeoJSON, {
             style: function(feature) {
-                // Style based on intensity
-                const intensity = feature.properties.intensity_;
+                let intensityRaw = feature.properties.classe_d_intensites;
+                if (typeof intensityRaw !== 'string') intensityRaw = '';
+                const intensity = intensityRaw.trim().toLowerCase();
                 let color, fillOpacity;
-                
                 switch(intensity) {
-                    case 'high':
+                    case 'forte':
                         color = '#d73027';
                         fillOpacity = 0.8;
                         break;
-                    case 'mean':
+                    case 'moyenne':
                         color = '#fcf11bff';
                         fillOpacity = 0.6;
                         break;
-                    case 'low':
+                    case 'faible':
                         color = '#4575b4';
                         fillOpacity = 0.4;
                         break;
@@ -1228,7 +1279,6 @@ function addRockfallLayer() {
                         color = '#999999';
                         fillOpacity = 0.3;
                 }
-                
                 return {
                     color: color,
                     weight: 1,
@@ -1242,12 +1292,16 @@ function addRockfallLayer() {
                 const props = feature.properties;
                 const popupContent = `
                     <div style="font-size: 12px;">
-                        <h4>🪨 Rockfall Hazard</h4>
-                        <p><strong>Intensity:</strong> ${props.intensity_}</p>
-                        <p><strong>Return Period:</strong> ${props.return_per} years</p>
+                        <h4>🪨 Chute de pierres / Crollo</h4>
                         <p><strong>Canton:</strong> ${props.canton}</p>
-                        <p><strong>Type:</strong> ${props.cantonal_t || 'N/A'}</p>
-                        ${props.comments ? `<p><strong>Comments:</strong> ${props.comments}</p>` : ''}
+                        <p><strong>Classe d'intensité:</strong> ${props.classe_d_intensites}</p>
+                        <p><strong>Commentaire:</strong> ${props.commentaire || ''}</p>
+                        <p><strong>Désignation cantonale du processus:</strong> ${props.designation_cantonale_du_processus || ''}</p>
+                        <p><strong>Événement extrême:</strong> ${props.evenement_extreme ? 'Oui' : 'Non'}</p>
+                        <p><strong>Processus partiel pour intensité synoptique:</strong> ${props.processus_partiel_pour_intensite_synoptique || ''}</p>
+                        <p><strong>Propriétaire des données:</strong> ${props.proprietaire_des_donnees || ''}</p>
+                        <p><strong>Récurrence:</strong> ${props.recurrence || ''}</p>
+                        <p><strong>Sources pour les processus partiels complète:</strong> ${props.sources_pour_les_processus_partiels_complete || ''}</p>
                     </div>
                 `;
                 layer.bindPopup(popupContent);
@@ -1748,6 +1802,166 @@ function initializeLayerControls() {
 }
 
 // ==================== LEAFLET DRAW FUNCTIONALITY ====================
+// ==================== HAZARD API FETCH & DISPLAY ====================
+let hazardLayer = null;
+/**
+ * Fetch hazard data from 3 API URLs (rockfall or debris flow) and display on map
+ * @param {string} hazardType - 'rockfall' or 'debris-flow'
+ * @param {Array} bbox - [minLng, minLat, maxLng, maxLat] in WGS84
+ */
+async function fetchAndDisplayHazardLayer(hazardType, bbox) {
+    if (!window.map) {
+        console.error('❌ Map not available');
+        return;
+    }
+    // Remove previous hazard layer
+    if (hazardLayer) {
+        window.map.removeLayer(hazardLayer);
+        hazardLayer = null;
+    }
+    // Build API URLs
+    const bboxStr = Array.isArray(bbox) ? bbox.join(',') : bbox;
+    let urls;
+    if (hazardType === 'rockfall') {
+        urls = [
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_0_a_30_ans/items?f=json&limit=20&bbox=${bboxStr}`,
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_100_a_300_ans/items?f=json&limit=20&bbox=${bboxStr}`,
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_30_a_100_ans/items?f=json&limit=20&bbox=${bboxStr}`
+        ];
+    } else if (hazardType === 'debris-flow') {
+        urls = [
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_debrisflow_recurrence_de_0_a_30_ans/items?f=json&limit=20&bbox=${bboxStr}`,
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_debrisflow_recurrence_de_100_a_300_ans/items?f=json&limit=20&bbox=${bboxStr}`,
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_debrisflow_recurrence_de_30_a_100_ans/items?f=json&limit=20&bbox=${bboxStr}`
+        ];
+    } else {
+        console.warn('⚠️ Unknown hazard type for API fetch:', hazardType);
+        return;
+    }
+    console.log('🔎 Hazard API debug info:');
+    console.log('  Hazard type:', hazardType);
+    console.log('  BBOX:', bboxStr);
+    urls.forEach((url, i) => console.log(`  API URL ${i + 1}:`, url));
+    try {
+        const responses = await Promise.all(urls.map(async (url, idx) => {
+            const resp = await fetch(url);
+            console.log(`  [API ${idx + 1}] Status:`, resp.status, resp.statusText);
+            if (!resp.ok) {
+                console.warn(`  [API ${idx + 1}] Response not OK:`, url);
+                return null;
+            }
+            const json = await resp.json();
+            console.log(`  [API ${idx + 1}] Features:`, json.features ? json.features.length : 'No features');
+            return json;
+        }));
+        const allFeatures = responses
+            .filter(j => j && j.features)
+            .flatMap(j => j.features);
+        console.log('  Total combined features:', allFeatures.length);
+        if (allFeatures.length === 0) {
+            alert('No hazard features found in the combined GeoJSON data.');
+            return;
+        }
+        // Debug log for classe_d_intensites for API-fetched rockfall features
+        if (hazardType === 'rockfall' && Array.isArray(allFeatures)) {
+            allFeatures.forEach(f => {
+                let raw = f.properties.classe_d_intensites;
+                if (typeof raw !== 'string') raw = '';
+                const norm = raw.trim().toLowerCase();
+                console.log('Rockfall feature intensity:', raw, '->', norm);
+            });
+        }
+        const combinedGeoJSON = {
+            type: "FeatureCollection",
+            features: allFeatures
+        };
+        hazardLayer = L.geoJSON(combinedGeoJSON, {
+            style: function(feature) {
+                // Use classe_d_intensites for rockfall styling
+                let intensityRaw = feature.properties && feature.properties.classe_d_intensites;
+                if (typeof intensityRaw !== 'string') intensityRaw = '';
+                const intensity = intensityRaw.trim().toLowerCase();
+                let color, fillOpacity;
+                switch(intensity) {
+                    case 'forte':
+                        color = '#d73027';
+                        fillOpacity = 0.8;
+                        break;
+                    case 'moyenne':
+                        color = '#fcf11bff';
+                        fillOpacity = 0.6;
+                        break;
+                    case 'faible':
+                        color = '#4575b4';
+                        fillOpacity = 0.4;
+                        break;
+                    default:
+                        // Hide features like 'aucune_atteinte' by making them transparent
+                        color = '#ffffff';
+                        fillOpacity = 0.0;
+                }
+                return {
+                    color: color,
+                    weight: 1,
+                    opacity: fillOpacity > 0 ? 1 : 0,
+                    fillColor: color,
+                    fillOpacity: fillOpacity
+                };
+            },
+            onEachFeature: function (feature, layer) {
+                let popupContent = '';
+                if (feature.properties) {
+                    popupContent = Object.entries(feature.properties)
+                        .map(([key, value]) => `<b>${key}:</b> ${value}`)
+                        .join('<br>');
+                }
+                layer.bindPopup(popupContent);
+            }
+        }).addTo(window.map);
+        // Zoom to bounds
+        try {
+            window.map.fitBounds(hazardLayer.getBounds());
+        } catch (e) {
+            // fallback to default view
+        }
+        console.log(`✅ Hazard layer (${hazardType}) added with ${allFeatures.length} features.`);
+    } catch (error) {
+        console.error('Error fetching combined GeoJSON:', error);
+        alert('Failed to fetch combined GeoJSON data.');
+    }
+}
+// ==================== WGS84 TO SWISS LV95 COORDINATE TRANSFORMATION ====================
+/**
+ * Convert WGS84 (longitude, latitude) to Swiss LV95 (east, north)
+ * @param {number} lng - Longitude (WGS84)
+ * @param {number} lat - Latitude (WGS84)
+ * @returns {{east: number, north: number}} - Swiss LV95 coordinates
+ */
+function WGS84ToSwiss(lng, lat) {
+    // Convert decimal degrees to sexagesimal seconds
+    function degToSec(angle) {
+        return angle * 3600.0;
+    }
+    // Reference point (Bern)
+    const lng0 = 7.439583333; // Bern longitude
+    const lat0 = 46.952405555; // Bern latitude
+    // Convert input to sexagesimal seconds
+    const L = degToSec(lng);
+    const B = degToSec(lat);
+    const L0 = degToSec(lng0);
+    const B0 = degToSec(lat0);
+    // Auxiliary values
+    const l = (L - L0) / 10000.0;
+    const b = (B - B0) / 10000.0;
+    // Swiss LV03 formulas
+    let east = 600072.37 + 211455.93 * l - 10938.51 * l * b - 0.36 * l * b * b - 44.54 * l * l * l;
+    let north = 200147.07 + 308807.95 * b + 3745.25 * l * l + 76.63 * b * b - 194.56 * l * l * b + 119.79 * b * b * b;
+    // Convert to LV95 by adding offsets
+    east = east + 2000000;
+    north = north + 1000000;
+    return { east, north };
+}
+window.WGS84ToSwiss = WGS84ToSwiss;
 function initializeDrawFunctionality() {
     console.log('🎨 Initializing Leaflet Draw functionality...');
     
@@ -1759,11 +1973,11 @@ function initializeDrawFunctionality() {
     }
     
     // Add draw event handlers
-    window.map.on('draw:created', function (e) {
+    window.map.on('draw:created', async function (e) {
+        console.log('🖌️ draw:created event fired');
         const type = e.layerType;
         const layer = e.layer;
-
-        console.log('✏️ Shape drawn:', type);
+        console.log('🖌️ Shape type:', type);
 
         // Add the drawn layer to the feature group
         window.fgp.addLayer(layer);
@@ -1772,7 +1986,7 @@ function initializeDrawFunctionality() {
         if (type === 'polygon') {
             console.log('📐 Polygon created for analysis');
             window.drawnPolygon = layer;
-            
+
             // Enable analysis button
             const runAnalysisBtn = document.getElementById('run-analysis');
             if (runAnalysisBtn) {
@@ -1782,6 +1996,43 @@ function initializeDrawFunctionality() {
 
             // Update the area selector to show "Drawn polygon" is available
             updateAreaSelector();
+
+            // Get bounds and set bbox in Swiss coordinates
+            const bounds = layer.getBounds();
+            if (bounds) {
+                console.log('bound: ', bounds);
+                // Always convert bounds to Swiss LV95 coordinates for Supabase query
+                if (typeof window.WGS84ToSwiss === 'function') {
+                    const sw = bounds.getSouthWest();
+                    const ne = bounds.getNorthEast();
+                    const minSwiss = window.WGS84ToSwiss(sw.lng, sw.lat);
+                    const maxSwiss = window.WGS84ToSwiss(ne.lng, ne.lat);
+                    window.currentBBox = [minSwiss.east, minSwiss.north, maxSwiss.east, maxSwiss.north];
+                    console.log('📦 Set window.currentBBox (Swiss, for Supabase):', window.currentBBox);
+                } else {
+                    window.currentBBox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+                    console.warn('⚠️ WGS84ToSwiss not available, using WGS84 bbox (may not work for Supabase):', window.currentBBox);
+                }
+            }
+
+            // Trigger buildings data load from Supabase
+            if (typeof window.loadBuildingsFromSupabase === 'function') {
+                console.log('🏢 Triggering loadBuildingsFromSupabase after polygon draw');
+                window.loadBuildingsFromSupabase();
+            } else {
+                console.warn('⚠️ window.loadBuildingsFromSupabase not available');
+            }
+
+            // Fetch and display hazard layer for selected hazard
+            let hazardType = (typeof window.selectedHazard === 'string' && window.selectedHazard) ? window.selectedHazard : 'rockfall';
+            console.log('🔍 window.selectedHazard value:', typeof window.selectedHazard, window.selectedHazard);
+            if (hazardType && bounds) {
+                const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+                console.log('🌋 Fetching hazard layer for:', hazardType, bbox);
+                await fetchAndDisplayHazardLayer(hazardType, bbox);
+            } else {
+                console.warn('⚠️ No hazard selected or bounds missing, skipping hazard fetch.');
+            }
         }
     });
 
@@ -2027,13 +2278,82 @@ function createSelectionHighlight(features, type, name) {
     
     // Zoom to the selected area
     const bounds = currentSelectionLayer.getBounds();
+    console.log('bounds:', bounds);
     if (bounds.isValid()) {
         window.map.fitBounds(bounds, {
             padding: [20, 20],
             maxZoom: type === 'commune' ? 13 : 10  // Closer zoom for communes
         });
         console.log(`🎯 Zoomed to selected ${type}: ${name}`);
+
+        // Only trigger API fetch if commune is selected
+        if (type === 'commune') {
+            // Get bounding box coordinates
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            // Format bbox: minx,miny,maxx,maxy (WGS84)
+            const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+            console.log('Fetching hazard data for bbox:', bbox);
+            fetchHazardDataFromSuisseAPI(bbox);
+        }
     }
+    
+// Fetch hazard maps from Suisse API for a bounding box
+function fetchHazardDataFromSuisseAPI(bbox) {
+    // Example endpoint for Suisse API OGC Features
+    // You may need to adjust the collection name and query params for your use case
+    const endpoint = `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/gefahrenkarten/items?bbox=${bbox}&f=json`;
+    console.log('API request:', endpoint);
+    fetch(endpoint)
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            console.log('Hazard data received:', data);
+            // TODO: Add logic to display hazard data on the map
+            // For example, add as a GeoJSON layer:
+            if (window.map && data && data.features) {
+                // Remove previous API hazard layer if present
+                if (window.suisseHazardLayer) {
+                    window.map.removeLayer(window.suisseHazardLayer);
+                }
+                window.suisseHazardLayer = L.geoJSON(data, {
+                    style: function(feature) {
+                        return {
+                            color: '#d73027',
+                            weight: 2,
+                            opacity: 0.8,
+                            fillColor: '#fcf11bff',
+                            fillOpacity: 0.3
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties || {};
+                        const popupContent = `
+                            <div style="font-size:12px;">
+                                <h4>Hazard Map</h4>
+                                <p><strong>Type:</strong> ${props.gefahrentyp || 'N/A'}</p>
+                                <p><strong>Intensity:</strong> ${props.gefahrenintensitaet || 'N/A'}</p>
+                                <p><strong>Commune:</strong> ${props.gemeindename || 'N/A'}</p>
+                                <p><strong>Canton:</strong> ${props.kanton || 'N/A'}</p>
+                            </div>
+                        `;
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(window.map);
+                // Fit map to new hazard layer
+                if (window.suisseHazardLayer.getBounds && window.suisseHazardLayer.getBounds().isValid()) {
+                    window.map.fitBounds(window.suisseHazardLayer.getBounds().pad(0.1));
+                }
+                console.log('✅ Suisse hazard layer added to map');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error fetching hazard data from Suisse API:', error);
+            alert('Could not fetch hazard data for this area.');
+        });
+}
     
     // Add to layer control for toggle functionality
     if (window.ctlLayers) {

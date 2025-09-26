@@ -1,12 +1,7 @@
 // ==================== LEAFLET MAP INITIALIZATION ====================
 function initializeMap() {
-    // Initialize the map with smooth zoom controls
-    window.map = L.map('map', {
-        // Smooth zoom settings for 1-level increments
-        zoomSnap: 1,           // Snap to integer zoom levels
-        zoomDelta: 1,          // Zoom by 1 level with each scroll/click
-        wheelPxPerZoomLevel: 120, // Less sensitive wheel scrolling to prevent double jumps
-    }).setView([46.9, 8.2], 9);
+    // Initialize the map with a set view in Switzerland and a zoom level
+    window.map = L.map('map').setView([46.9, 8.2], 8);
 
     // Set the background layer 
     L.tileLayer.provider('OpenStreetMap.Mapnik', {
@@ -249,24 +244,18 @@ function addSwissAdminAreas() {
         // Add to layer control
         window.ctlLayers.addOverlay(window.swissAdminLayer, "Swiss Administrative Areas");
         
-        // Set strict bounds to Switzerland and restrict dragging
-        const swissBounds = L.latLngBounds(
-            L.latLng(45.8, 5.9),   // Southwest corner
-            L.latLng(47.8, 10.5)   // Northeast corner
-        );
-        
-        // Set max bounds to keep the map within Switzerland
-        window.map.setMaxBounds(swissBounds);
-        
-        // Fit the map to show all administrative areas
-        window.map.fitBounds(window.swissAdminLayer.getBounds(), {
-            padding: [5, 5]
-        });
-        
-        // Prevent dragging outside of bounds
-        window.map.on('drag', function() {
-            window.map.panInsideBounds(swissBounds, { animate: false });
-        });
+    // --- Switzerland bounds restriction (commented out for world view) ---
+    // const swissBounds = L.latLngBounds(
+    //     L.latLng(45.8, 5.9),   // Southwest corner
+    //     L.latLng(47.8, 10.5)   // Northeast corner
+    // );
+    // window.map.setMaxBounds(swissBounds);
+    // window.map.fitBounds(window.swissAdminLayer.getBounds(), {
+    //     padding: [10, 10]
+    // });
+    // window.map.on('drag', function() {
+    //     window.map.panInsideBounds(swissBounds, { animate: false });
+    // });
         
         // console.log('✅ Swiss Administrative Areas added to map successfully');
         // console.log('🗺️ Map bounds set to Switzerland region');

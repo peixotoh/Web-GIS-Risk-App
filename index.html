@@ -79,42 +79,11 @@
             <div id="side-bar" class="col-sm-3">
                 <div class="workflow-panel">
                     <h3 class="workflow-title">Risk Analysis Workflow</h3>
-                    
-                    <!-- 1. Data Source Section -->
+
+                    <!-- 1. Hazard Maps Section -->
                     <div class="workflow-section">
                         <h4 class="section-title">
                             <span class="step-number">1</span>
-                            Data Source
-                        </h4>
-                        <div class="section-content">
-                            <div class="form-group">
-                                <label for="data-source-select">Select Data Source</label>
-                                <select id="data-source-select" class="form-control">
-                                    <option value="api">Swiss API Data</option>
-                                    <option value="custom">Upload Custom Data</option>
-                                </select>
-                            </div>
-                            
-                            <!-- Upload Section (hidden by default) -->
-                            <div id="upload-section" style="display: none;">
-                                <div class="form-group">
-                                    <label for="custom-data-upload">Upload Custom Data</label>
-                                    <div class="custom-file">
-                                        <input type="file" class="custom-file-input" id="custom-data-upload" accept=".geojson,.json" disabled>
-                                        <label class="custom-file-label" for="custom-data-upload">Choose file...</label>
-                                    </div>
-                                    <small class="form-text text-muted">
-                                        Select a hazard type first, then upload GeoJSON file
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 2. Hazard Maps Section -->
-                    <div class="workflow-section">
-                        <h4 class="section-title">
-                            <span class="step-number">2</span>
                             Hazard Maps
                         </h4>
                         <div class="section-content">
@@ -146,47 +115,73 @@
                         </div>
                     </div>
                     
-                    <!-- 3. Location Section -->
+                    <!-- 2. Data Source Section -->
                     <div class="workflow-section">
                         <h4 class="section-title">
-                            <span class="step-number">3</span>
-                            Location
+                            <span class="step-number">2</span>
+                            Data Source
                         </h4>
                         <div class="section-content">
-                            <!-- Canton Dropdown -->
                             <div class="form-group">
-                                <label for="canton-select">Canton</label>
-                                <select id="canton-select" class="form-control">
-                                    <option value="">Select Canton</option>
-                                    <option value="vs">Valais</option>
-                                    <option value="ti">Ticino</option>
-                                    <option value="gr">Grisons</option>
-                                    <option value="be">Bern</option>
-                                    <option value="ur">Uri</option>
-                                    <option value="other">Other</option>
+                                <label for="data-source-select">Select Data Source</label>
+                                <select id="data-source-select" class="form-control">
+                                    <option value="api">Swiss API Data</option>
+                                    <option value="custom">Upload Custom Data</option>
                                 </select>
                             </div>
                             
-                            <!-- Commune Dropdown -->
-                            <div class="form-group">
-                                <label for="commune-select">Commune</label>
-                                <select id="commune-select" class="form-control" disabled>
-                                    <option value="">Select Commune</option>
-                                </select>
-                            </div>
+                            <!-- Upload Section (hidden by default) -->
+                            <div id="custom-upload-section" style="display: none;">
+                                <div class="form-group">
+                                    <!-- Hazards-->
+                                    <label for="custom-hazard-upload">Upload hazard Data</label>
+                                    <div class="custom-file">
+                                        <input type="file" class="custom-file-input" id="custom-hazard-upload" accept=".geojson,.json">
+                                        <label class="custom-file-label" for="custom-hazard-upload">hazard</label>
+                                    </div>
+                                    <!-- Buildings-->
+                                    <label for="custom-building-upload">Upload building Data</label>
+                                    <div class="custom-file">
+                                        <input type="file" class="custom-file-input" id="custom-building-upload" accept=".geojson,.json" disabled>
+                                        <label class="custom-file-label" for="custom-building-upload">building</label>
+                                    </div>
+
+                                    <small class="form-text text-muted">
+                                        Select a hazard type first, then upload GeoJSON file
+                                    </small>
+                                </div>
+                            </div>   
                             
-                            <!-- Polygons Dropdown -->
-                            <div class="form-group">
-                                <label for="polygon-select">Drawn Polygons</label>
-                                <select id="polygon-select" class="form-control" disabled>
-                                    <option value="">No polygons available</option>
-                                </select>
-                                <small class="form-text text-muted">
-                                    Draw polygons on the map to see them here
-                                </small>
+                            <!-- Swiss Data Section (visible by default) -->
+                            <div id="suisse-data-section" class="section-content">
+                                <!-- Canton Dropdown -->
+                                <div class="form-group">
+                                    <label for="canton-select">Canton</label>
+                                    <select id="canton-select" class="form-control">
+                                        <option value="">Select Canton</option>
+                                        <option value="vs">Valais</option>
+                                        <option value="ti">Ticino</option>
+                                        <option value="gr">Grisons</option>
+                                        <option value="be">Bern</option>
+                                        <option value="ur">Uri</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Commune Dropdown -->
+                                <div class="form-group">
+                                    <label for="commune-select">Commune</label>
+                                    <select id="commune-select" class="form-control" disabled>
+                                        <option value="">Select Commune</option>
+                                    </select>
+                                </div>                               
+                                
                             </div>
+                            <!-- Swiss Data Section (visible by default) -->
+
                         </div>
                     </div>
+                    
                     
                     <!-- 4. Buildings Section -->
                     <div class="workflow-section">
@@ -210,6 +205,7 @@
                             </small>
                         </div>
                     </div>
+                    
                     
                     <!-- 5. Vulnerability Section -->
                     <div class="workflow-section">

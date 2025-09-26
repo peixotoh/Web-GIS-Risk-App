@@ -6,7 +6,7 @@
 
 // Supabase configuration - UPDATE THESE WITH YOUR ACTUAL VALUES
 const SUPABASE_CONFIG = {
-    url: 'https://gmnvtulnusespebjqjrp.supabase.co',        // Replace with your Supabase project URL
+    url: 'https://gmnvtulnusespebjqjrp.supabase.co',   // Supabase project URL
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdtbnZ0dWxudXNlc3BlYmpxanJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0OTA2NTEsImV4cCI6MjA3MzA2NjY1MX0.1MEhdh0Qe8EIfXK2mdc_dznFQ7btPIHfCM_2faGb1GM' // Replace with your Supabase anon key
 };
 
@@ -180,97 +180,119 @@ function swissToWGS84(east, north) {
 
 // Function to load buildings data from Supabase
 async function loadBuildingsFromSupabase() {
-    // console.log('🏢 Loading buildings from Supabase...');
-    
-    try {
-        // First, let's see what columns are available by selecting everything from one record
-        // console.log('🔍 Checking available columns...');
-        const { data: sampleData, error: sampleError } = await supabase
-            .from('ti_buildings')
-            .select('*')
-            .limit(1);
-        
-        if (sampleError) {
-            console.error('❌ Sample query error:', sampleError);
+    console.log('🏢 loadBuildingsFromSupabase called');
+    // Check network status
+    if (!navigator.onLine) {
+        console.error('❌ Browser is offline. Cannot query Supabase.');
+        alert('You are offline. Buildings data cannot be loaded.');
+        return;
+    }
+    // Check Supabase client
+    if (!supabase) {
+        console.error('❌ Supabase client not initialized!');
+        alert('Supabase client not initialized.');
+        return;
+    }
+    // Check map object
+    if (!window.map) {
+        console.error('❌ Map object not found!');
+        alert('Map object not found!');
+        return;
+    } else {
+        console.log('🗺️ Map object found:', window.map);
+    }
+    // Check bbox
+    if (window.currentBBox && window.currentBBox.length === 4) {
+        const [minEast, minNorth, maxEast, maxNorth] = window.currentBBox;
+        console.log('🔍 Using bbox for Supabase query:', window.currentBBox);
+        console.log(`🔢 Query GKODE >= ${minEast}, GKODE <= ${maxEast}, GKODN >= ${minNorth}, GKODN <= ${maxNorth}`);
+        let data, error;
+        try {
+            ({ data, error } = await supabase
+                .from('ti_buildings')
+                .select('EGID, GGDENAME, GDEKT, GKAT, GKLAS, GBAUJ, GAREA, GVOL, GKODE, GKODN')
+                .gte('GKODE', minEast)
+                .lte('GKODE', maxEast)
+                .gte('GKODN', minNorth)
+                .lte('GKODN', maxNorth)
+                .limit(400));
+        } catch (err) {
+            console.error('❌ Supabase query threw error:', err);
+            alert('Supabase query failed: ' + err);
             return;
         }
-        
-        if (sampleData && sampleData.length > 0) {
-            // console.log('📋 Available columns:', Object.keys(sampleData[0]));
-            // console.log('📄 Sample record:', sampleData[0]);
-        }
-        
-        // Now try with corrected column names based on the hint
-        // console.log('🏢 Loading buildings with corrected column names...');
-        const { data, error } = await supabase
-            .from('ti_buildings')
-            .select('EGID, GGDENAME, GDEKT, GKAT, GKLAS, GBAUJ, GAREA, GVOL, GKODE, GKODN')
-            .limit(400);
-        
         if (error) {
             console.error('❌ Supabase error:', error);
+            alert('Supabase error: ' + error.message);
             return;
         }
-        
         if (data && data.length > 0) {
-            // console.log('✅ Buildings loaded from Supabase:');
-            // console.log('📊 Total records:', data.length);
-            
-            // Store data globally for attributes table
+            console.log(`✅ ${data.length} buildings loaded from bbox.`);
             buildingsData = data;
-            
-            // Add buildings to map
-            // console.log('✅ Loaded', data.length, 'buildings from database');
             addBuildingsToMap(data);
         } else {
-            console.warn('⚠️ No data returned - this might be a permissions/RLS issue');
-            // console.log('💡 Check your Supabase Row Level Security policies');
+            console.warn('⚠️ No buildings found in bbox. Data:', data);
+            alert('No buildings found in selected area.');
         }
-        
         return data;
-        
-    } catch (error) {
-        console.error('❌ Error loading buildings:', error);
+    } else {
+        console.log('🔍 No bbox set, loading all buildings (limit 400)');
+        let data, error;
+        try {
+            ({ data, error } = await supabase
+                .from('ti_buildings')
+                .select('EGID, GGDENAME, GDEKT, GKAT, GKLAS, GBAUJ, GAREA, GVOL, GKODE, GKODN')
+                .limit(400));
+        } catch (err) {
+            console.error('❌ Supabase query threw error:', err);
+            alert('Supabase query failed: ' + err);
+            return;
+        }
+        if (error) {
+            console.error('❌ Supabase error:', error);
+            alert('Supabase error: ' + error.message);
+            return;
+        }
+        if (data && data.length > 0) {
+            console.log(`✅ ${data.length} buildings loaded (no bbox).`);
+            buildingsData = data;
+            addBuildingsToMap(data);
+        } else {
+            console.warn('⚠️ No data returned - this might be a permissions/RLS issue. Data:', data);
+            alert('No buildings data returned. Check Supabase permissions.');
+        }
+        return data;
     }
 }
 
 // Function to add buildings to the map
 function addBuildingsToMap(buildingsData) {
-    // console.log('🗺️ Adding buildings to map...');
-    
+    console.log('🗺️ Adding buildings to map...');
     // Check if map is available
     if (!window.map) {
         console.error('❌ Map not found! Make sure Leaflet map is initialized.');
+        alert('Map not found!');
         return;
     }
-    
     // Remove existing buildings layer if it exists
     if (buildingsLayer) {
         window.map.removeLayer(buildingsLayer);
-        // console.log('🗑️ Removed existing buildings layer');
+        console.log('🗑️ Removed existing buildings layer');
     }
-    
-    // Create a new layer group for buildings
     buildingsLayer = L.layerGroup();
-    
     let addedBuildings = 0;
-    const coordinates = []; // Store coordinates for zoom extent
-    
-    // Process each building
+    const coordinates = [];
     buildingsData.forEach((building, index) => {
         try {
             let lat, lng;
-            
-            // Check for Swiss coordinates and transform them
-            // Updated to use GKODE (East) and GKODN (North) based on error hint
             if (building.GKODE && building.GKODN) {
                 const wgs84 = swissToWGS84(building.GKODE, building.GKODN);
                 lat = wgs84.lat;
                 lng = wgs84.lng;
-                // console.log(`🔄 Building ${building.EGID}: Swiss [${building.GKODE}, ${building.GKODN}] → WGS84 [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
+                //console.log(`🔄 Building ${building.EGID}: Swiss [${building.GKODE}, ${building.GKODN}] → WGS84 [${lat}, ${lng}]`);
+            } else {
+                console.warn(`⚠️ Building ${building.EGID} missing Swiss coordinates GKODE/GKODN.`);
             }
-            
-            // Create marker if we have valid WGS84 coordinates
             if (lat && lng && !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
                 const marker = L.circleMarker([lat, lng], {
                     radius: 8,
@@ -280,8 +302,6 @@ function addBuildingsToMap(buildingsData) {
                     opacity: 1,
                     fillOpacity: 0.7
                 });
-                
-                // Create popup content with Swiss building data
                 const popupContent = `
                     <div class="building-popup">
                         <h6><strong>Building ${building.EGID}</strong></h6>
@@ -295,37 +315,34 @@ function addBuildingsToMap(buildingsData) {
                         <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
                     </div>
                 `;
-                
                 marker.bindPopup(popupContent);
                 buildingsLayer.addLayer(marker);
                 coordinates.push([lat, lng]);
                 addedBuildings++;
+            } else {
+                console.warn(`⚠️ Building ${building.EGID} has invalid WGS84 coordinates: lat=${lat}, lng=${lng}`);
             }
-            
         } catch (error) {
             console.warn(`⚠️ Error processing building ${building.EGID}:`, error);
         }
     });
-    
     // Add the layer to the map
     if (addedBuildings > 0) {
         buildingsLayer.addTo(window.map);
-        // console.log(`✅ Added ${addedBuildings} buildings to map`);
-        
+        console.log(`✅ Added ${addedBuildings} buildings to map`);
         // Zoom to extent of all buildings
         if (coordinates.length > 1) {
             const group = new L.featureGroup(buildingsLayer.getLayers());
             window.map.fitBounds(group.getBounds().pad(0.1));
-            // console.log('🔍 Zoomed to buildings extent');
+            console.log('🔍 Zoomed to buildings extent');
         } else if (coordinates.length === 1) {
             window.map.setView(coordinates[0], 15);
-            // console.log('🔍 Centered on single building');
+            console.log('🔍 Centered on single building');
         }
-        
-        // Store reference for removal later
         window.buildingsLayer = buildingsLayer;
     } else {
         console.warn('⚠️ No buildings could be mapped. Check coordinate transformation.');
+        alert('No buildings could be mapped. Check coordinate transformation.');
     }
 }
 

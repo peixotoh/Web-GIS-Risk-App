@@ -1,7 +1,13 @@
 // ==================== LEAFLET MAP INITIALIZATION ====================
 function initializeMap() {
     // Initialize the map with a set view in Switzerland and a zoom level
-    window.map = L.map('map').setView([46.9, 8.2], 8);
+    // Force zoom increments to single steps (zoomDelta = 1) and snap to integer zooms (zoomSnap = 1)
+    window.map = L.map('map', {
+        zoomDelta: 1,
+        zoomSnap: 1,
+        doubleClickZoom: true,
+        scrollWheelZoom: true
+    }).setView([46.9, 8.2], 8);
 
     // Set the background layer 
     L.tileLayer.provider('OpenStreetMap.Mapnik', {

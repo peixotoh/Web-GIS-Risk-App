@@ -2,6 +2,35 @@
 
 // console.log('📄 Simple app.js loading...');
 
+// ------------------ Global variables (initialized at file top) ------------------
+// Keep global/window-scoped state together here so they're easy to find.
+if (typeof window.map === 'undefined') window.map = null;
+// Canonical hazard variable; per-hazard custom layers removed
+if (typeof window.hazardLayer === 'undefined') window.hazardLayer = null;
+if (typeof window.drawnPolygon === 'undefined') window.drawnPolygon = null;
+if (typeof window.selectedLocation === 'undefined') window.selectedLocation = null;
+if (typeof window.selectedHazard === 'undefined') window.selectedHazard = null;
+if (typeof window.buildingsEnabled === 'undefined') window.buildingsEnabled = false;
+if (typeof window.currentBBox === 'undefined') window.currentBBox = null;
+if (typeof window.fgp === 'undefined') window.fgp = null;
+if (typeof window.fgp1 === 'undefined') window.fgp1 = null;
+if (typeof window.drawControl === 'undefined') window.drawControl = null;
+if (typeof window.ctlLayers === 'undefined') window.ctlLayers = null;
+if (typeof window.swissAdminLayer === 'undefined') window.swissAdminLayer = null;
+// Ensure buildings variables are present
+// Single buildings variables used across all flows
+if (typeof window.buildingsLayer === 'undefined') window.buildingsLayer = null;
+if (typeof window.buildingsData === 'undefined') window.buildingsData = null;
+// Spatial analysis variables
+if (typeof window.latestAnalysisResults === 'undefined') window.latestAnalysisResults = null;
+if (typeof window.latestExtractionResults === 'undefined') window.latestExtractionResults = null;
+if (typeof window.analysisHighlightLayer === 'undefined') window.analysisHighlightLayer = null;
+if (typeof window.currentAnalysisLayers === 'undefined') window.currentAnalysisLayers = null;
+// Expose common building functions here for quick reference (overwritten by modules)
+window.loadBuildingsFromSupabase = window.loadBuildingsFromSupabase || function() { console.warn('loadBuildingsFromSupabase not initialized'); };
+window.removeBuildingsFromMap = window.removeBuildingsFromMap || function() { console.warn('removeBuildingsFromMap not initialized'); };
+// ---------------------------------------------------------------------------------
+
 // Reset map functionality
 function initializeResetButton() {
     const resetBtn = document.getElementById('reset-map-btn');
@@ -43,6 +72,18 @@ function resetMap() {
     }, 200);
     
     console.log('✅ Map reset completed');
+
+    // After reset, ensure the selected hazard (default rockfall) is displayed
+    try {
+        const sel = window.currentAdministrativeSelection;
+        if (sel && sel.layer && typeof fetchAndDisplayHazardLayer === 'function') {
+            const b = sel.layer.getBounds();
+            if (b && b.isValid()) {
+                const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+                fetchAndDisplayHazardLayer(window.selectedHazard || 'rockfall', bbox);
+            }
+        }
+    } catch (e) { /* ignore */ }
 }
 
 function resetFormControls() {
@@ -76,34 +117,34 @@ function resetFormControls() {
     // Reset vulnerability controls
     const vulnerabilitySelect = document.getElementById('vulnerability-select');
     if (vulnerabilitySelect) vulnerabilitySelect.value = '';
+
+    // Keep rockfall selected by default after reset so a hazard is always selected
+    const rockfallToggle = document.getElementById('rockfall-toggle');
+    const debrisFlowToggle = document.getElementById('debris-flow-toggle');
+    if (rockfallToggle) rockfallToggle.checked = true;
+    if (debrisFlowToggle) debrisFlowToggle.checked = false;
+    // Sync global selected hazard
+    if (typeof window.selectedHazard !== 'undefined') window.selectedHazard = 'rockfall';
 }
 
 function removeAllLayers() {
     // Remove hazard layers (both API and custom data)
-    if (typeof removeRockfallLayer === 'function') {
-        removeRockfallLayer();
-    }
-    if (typeof removeDebrisFlowLayer === 'function') {
-        removeDebrisFlowLayer();
-    }
+    // Ensure any previous hazard layer is removed
+    removeHazardFromMap();
+    // Use canonical hazard remover
+    removeHazardFromMap();
     
-    // Remove custom hazard layers if they exist as separate variables
-    if (window.customRockfallLayer && window.map) {
-        window.map.removeLayer(window.customRockfallLayer);
-        window.customRockfallLayer = null;
-    }
-    if (window.customDebrisFlowLayer && window.map) {
-        window.map.removeLayer(window.customDebrisFlowLayer);
-        window.customDebrisFlowLayer = null;
-    }
+    // Use canonical hazard removal; removeHazardFromMap already called above
     
     // Remove ALL building layers (Supabase + static)
     if (typeof window.removeBuildingsFromMap === 'function') {
         window.removeBuildingsFromMap();
     }
-    if (window.staticBuildingsLayer && window.map) {
-        window.map.removeLayer(window.staticBuildingsLayer);
-        window.staticBuildingsLayer = null;
+    // Also remove any previous buildingsLayer used by static/custom flows
+    if (window.buildingsLayer && window.map) {
+        try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
+        window.buildingsLayer = null;
+        window.buildingsData = null;
     }
     
     // Remove selection highlight
@@ -123,8 +164,8 @@ function removeAllLayers() {
 
 function resetMapView() {
     if (window.map) {
-        // Reset to world view, unrestricted
-        window.map.setView([20, 0], 2); // Center on world, zoomed out
+        // Reset to Switzerland center and zoom level 8
+        window.map.setView([46.9, 8.2], 8);
     }
 }
 
@@ -137,7 +178,8 @@ function resetStateVariables() {
         window.selectedLocation = null;
     }
     if (typeof window.selectedHazard !== 'undefined') {
-        window.selectedHazard = null;
+        // Preserve a default hazard selection after reset
+        window.selectedHazard = 'rockfall';
     }
     if (typeof window.buildingsEnabled !== 'undefined') {
         window.buildingsEnabled = false;
@@ -194,6 +236,8 @@ function initializeWorkflow() {
                     
                     // Zoom to the selected canton
                     zoomToAdministrativeArea('canton', e.target.value);
+
+                    // Building fetch triggered by zoomToAdministrativeArea (sets window.currentBBox)
                 } else {
                     communeSelect.disabled = true;
                     communeSelect.innerHTML = '<option value="">Select Commune</option>';
@@ -236,16 +280,32 @@ function initializeWorkflow() {
         if (rockfallToggle) {
             rockfallToggle.checked = true;
             selectedHazard = 'rockfall';
+            // keep global selection in sync
+            window.selectedHazard = 'rockfall';
         }
 
         if (rockfallToggle) {
             rockfallToggle.addEventListener('change', function(e) {
                 if (e.target.checked) {
                     selectedHazard = 'rockfall';
+                    // sync global selection
+                    window.selectedHazard = 'rockfall';
                     console.log('Rockfall hazard selected');
                     if (debrisFlowToggle) debrisFlowToggle.checked = false;
+                    // If an administrative area is selected, refresh hazards for that area
+                    try {
+                        const sel = window.currentAdministrativeSelection;
+                        if (sel && sel.layer && typeof fetchAndDisplayHazardLayer === 'function') {
+                            const b = sel.layer.getBounds();
+                            if (b && b.isValid()) {
+                                const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+                                fetchAndDisplayHazardLayer(window.selectedHazard, bbox);
+                            }
+                        }
+                    } catch (err) { console.warn('⚠️ Could not refresh hazards after selecting rockfall', err); }
                 } else {
                     selectedHazard = null;
+                    window.selectedHazard = null;
                 }
                 if (typeof updateDataSourceDisplay === 'function') {
                     updateDataSourceDisplay();
@@ -257,10 +317,23 @@ function initializeWorkflow() {
             debrisFlowToggle.addEventListener('change', function(e) {
                 if (e.target.checked) {
                     selectedHazard = 'debris-flow';
+                    window.selectedHazard = 'debris-flow';
                     console.log('Debris flow hazard selected');
                     if (rockfallToggle) rockfallToggle.checked = false;
+                    // Refresh hazards for current selection if present
+                    try {
+                        const sel = window.currentAdministrativeSelection;
+                        if (sel && sel.layer && typeof fetchAndDisplayHazardLayer === 'function') {
+                            const b = sel.layer.getBounds();
+                            if (b && b.isValid()) {
+                                const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+                                fetchAndDisplayHazardLayer(window.selectedHazard, bbox);
+                            }
+                        }
+                    } catch (err) { console.warn('⚠️ Could not refresh hazards after selecting debris flow', err); }
                 } else {
                     selectedHazard = null;
+                    window.selectedHazard = null;
                 }
                 if (typeof updateDataSourceDisplay === 'function') {
                     updateDataSourceDisplay();
@@ -295,7 +368,8 @@ function initializeWorkflow() {
                     fileLabel.textContent = fileName || 'Choose file...';
                 }
                 if (this.files && this.files[0]) {
-                    processCustomDataFile(this.files[0]);
+                    // pass explicit type so the processor knows this is a hazard file
+                    processCustomDataFile(this.files[0], 'hazard');
                 }
             }
         }
@@ -309,7 +383,8 @@ function initializeWorkflow() {
                     fileLabel.textContent = fileName || 'Choose file...';
                 }
                 if (this.files && this.files[0]) {
-                    processCustomDataFile(this.files[0]);
+                    // pass explicit type so the processor knows this is a building file
+                    processCustomDataFile(this.files[0], 'building');
                 }
             }
         }
@@ -323,10 +398,14 @@ function initializeWorkflow() {
                 if (fileLabel) {
                     fileLabel.textContent = fileName || 'Choose file...';
                 }
-                
+
                 // Process uploaded file
                 if (this.files && this.files[0]) {
-                    processCustomDataFile(this.files[0]);
+                    // Decide explicit input type: if a hazard is selected, treat as hazard upload,
+                    // otherwise treat as building upload (buildings uploads don't require hazard selection).
+                    const selectedHazard = getSelectedHazardType();
+                    const inputType = selectedHazard ? 'hazard' : 'building';
+                    processCustomDataFile(this.files[0], inputType);
                 }
             });
         }
@@ -403,16 +482,20 @@ function initializeWorkflow() {
         }
         
         // Function to process uploaded custom data file
-        function processCustomDataFile(file) {
-            console.log('📁 Processing custom data file:', file.name);
+        function processCustomDataFile(file, inputType) {
+            console.log('📁 Processing custom data file:', file.name, 'type:', inputType);
             // Check file type
             if (!file.name.toLowerCase().endsWith('.geojson') && !file.name.toLowerCase().endsWith('.json')) {
                 alert('⚠️ Please upload a GeoJSON file (.geojson or .json)');
                 return;
             }
             // Determine input type (hazard or building)
-            let isBuildingUpload = false;
-            if (file.inputId === 'custom-building-upload' || (file.target && file.target.id === 'custom-building-upload')) {
+            // Prefer explicit inputType param from onchange handlers
+            let isBuildingUpload = (inputType === 'building');
+            if (!isBuildingUpload && inputType === 'hazard') isBuildingUpload = false;
+            // Fallback: try to infer from file input name
+            if (isBuildingUpload === false && (file.name || '').toLowerCase().includes('build')) {
+                // weak inference if filename contains 'build'
                 isBuildingUpload = true;
             }
             // For buildings, no hazard selection required
@@ -483,6 +566,7 @@ function initializeWorkflow() {
             }
             return null;
         }
+        window.getSelectedHazardType = getSelectedHazardType;
         
         // Function to load custom data to map
         // Function to load custom hazard data to map
@@ -490,12 +574,10 @@ function initializeWorkflow() {
             console.log(`🗺️ Loading custom ${hazardType} data to map...`);
             try {
                 // Remove existing hazard layers first
-                if (typeof removeRockfallLayer === 'function') {
-                    removeRockfallLayer();
-                }
-                if (typeof removeDebrisFlowLayer === 'function') {
-                    removeDebrisFlowLayer();
-                }
+                // Ensure any previous hazard layer is removed
+                removeHazardFromMap();
+                // Ensure a single canonical hazard layer is removed
+                removeHazardFromMap();
                 // Detect coordinate system and transform if needed
                 console.log('⏳ Detecting and transforming coordinates...');
                 const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
@@ -584,19 +666,31 @@ function initializeWorkflow() {
                         }
                     }
                 });
-                // Add to map and assign to the appropriate global variable
+                // Delegate to unified hazard adder so we use single canonical window.hazardLayer
                 if (window.map) {
-                    console.log('⏳ Adding layer to map...');
-                    customLayer.addTo(window.map);
-                    // Assign to global variable for custom hazard layer
-                    window.customHazardLayer = customLayer;
-                    // Fit map to custom data bounds
-                    console.log('⏳ Fitting map to bounds...');
-                    if (customLayer.getBounds && customLayer.getBounds().isValid()) {
-                        window.map.fitBounds(customLayer.getBounds());
+                    try {
+                        addHazardToMap(transformedGeoJSON, hazardType === 'debris-flow' ? 'debris_flow' : hazardType);
+                        console.log(`✅ Custom hazard data loaded with ${transformedGeoJSON.features.length} features`);
+                        alert('✅ Custom hazard data loaded successfully!');
+                        // Clear file inputs and labels so the user can upload again (overwrite)
+                        try {
+                            const hazardUploadInputEl = document.getElementById('custom-hazard-upload');
+                            const genericUploadInputEl = document.getElementById('custom-data-upload');
+                            if (hazardUploadInputEl) {
+                                hazardUploadInputEl.value = '';
+                                const label = hazardUploadInputEl.parentElement && hazardUploadInputEl.parentElement.querySelector('.custom-file-label');
+                                if (label) label.textContent = 'Choose file...';
+                            }
+                            if (genericUploadInputEl) {
+                                genericUploadInputEl.value = '';
+                                const label2 = genericUploadInputEl.parentElement && genericUploadInputEl.parentElement.querySelector('.custom-file-label');
+                                if (label2) label2.textContent = 'Choose file...';
+                            }
+                        } catch (e) { /* ignore non-fatal */ }
+                    } catch (error) {
+                        console.error('❌ Error adding custom hazard to map:', error);
+                        alert('⚠️ Failed to add custom hazard to map. See console.');
                     }
-                    console.log(`✅ Custom hazard data loaded with ${transformedGeoJSON.features.length} features`);
-                    alert(`✅ Custom hazard data loaded successfully!`);
                 } else {
                     console.error('❌ Map not available');
                     alert('⚠️ Map not available. Please refresh the page and try again.');
@@ -604,18 +698,29 @@ function initializeWorkflow() {
             } catch (error) {
                 console.error('❌ Error in loadCustomHazardDataToMap:', error);
                 alert('⚠️ Error loading custom hazard data to map: ' + error.message);
-            // ...existing code...
-        }
+            }
         }
 
         // Function to load custom buildings data to map
         function loadCustomBuildingsDataToMap(geojsonData) {
+            if (window.buildingsLayer && window.map) {
+                    try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
+                    console.log('buildings were removed', window.buildingsLayer);
+                    window.buildingsLayer = null;
+                    window.buildingsData = null;
+                    console.log('values set to null');
+
+            }
             console.log('🏢 Loading custom buildings data to map...');
             try {
-                // Remove existing buildings layer if present
-                if (window.staticBuildingsLayer && window.map) {
-                    window.map.removeLayer(window.staticBuildingsLayer);
-                    window.staticBuildingsLayer = null;
+                // Remove existing buildings layer if present (single variable)
+                if (window.buildingsLayer && window.map) {
+                    try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
+                    console.log('buildings were removed', window.buildingsLayer);
+                    window.buildingsLayer = null;
+                    window.buildingsData = null;
+                    console.log('values set to null');
+
                 }
                 // Detect coordinate system and transform if needed
                 const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
@@ -623,8 +728,8 @@ function initializeWorkflow() {
                     alert('⚠️ No valid building features found after coordinate processing.');
                     return;
                 }
-                // Create Leaflet layer for all geometry types
-                const customBuildingsLayer = L.geoJSON(transformedGeoJSON, {
+                // Create Leaflet layer for all geometry types and assign directly to the single global
+                window.buildingsLayer = L.geoJSON(transformedGeoJSON, {
                     pointToLayer: function(feature, latlng) {
                         // Style for building points
                         return L.circleMarker(latlng, {
@@ -633,7 +738,8 @@ function initializeWorkflow() {
                             color: '#000',
                             weight: 1,
                             opacity: 1,
-                            fillOpacity: 0.8
+                            fillOpacity: 0.8,
+                            interactive: true
                         });
                     },
                     style: function(feature) {
@@ -649,33 +755,86 @@ function initializeWorkflow() {
                     onEachFeature: function(feature, layer) {
                         try {
                             const props = feature.properties || {};
-                            let popupContent = `<div class="building-popup"><h6><strong>🏢 Custom Building</strong></h6>`;
-                            Object.keys(props).forEach(key => {
-                                if (props[key] !== null && props[key] !== undefined && props[key] !== '') {
-                                    popupContent += `<p><strong>${key.replace('_', ' ')}:</strong> ${props[key]}</p>`;
+                            // Prioritized building fields (common Supabase fields + generic names)
+                            const priority = ['EGID','GGDENAME','GDEKT','GKAT','GBAUJ','GAREA','GVOL','id','name','address','adresse','egid','gkd','gkode'];
+                            const used = new Set();
+                            let popupContent = `<div class="building-popup"><h6><strong>🏢 Building</strong></h6>`;
+
+                            // Add priority fields first
+                            for (const key of priority) {
+                                if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== undefined && props[key] !== '') {
+                                    const displayKey = key.replace(/_/g,' ');
+                                    let val = props[key];
+                                    if (typeof val === 'number') val = val.toLocaleString();
+                                    popupContent += `<p><strong>${displayKey}:</strong> ${String(val)}</p>`;
+                                    used.add(key);
                                 }
-                            });
-                            // Show coordinates for points
-                            if (feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates)) {
-                                const [lng, lat] = feature.geometry.coordinates;
-                                popupContent += `<p><strong>Coordinates:</strong> ${lat?.toFixed(6)}, ${lng?.toFixed(6)}</p>`;
                             }
-                            popupContent += `</div>`;
+
+                            // Add remaining properties
+                            Object.keys(props).forEach(k => {
+                                if (used.has(k)) return;
+                                const v = props[k];
+                                if (v === null || v === undefined || v === '') return;
+                                let displayVal;
+                                if (typeof v === 'object') {
+                                    try { displayVal = JSON.stringify(v); } catch(e) { displayVal = String(v); }
+                                } else {
+                                    displayVal = String(v);
+                                }
+                                if (displayVal.length > 300) displayVal = displayVal.slice(0,300) + '…';
+                                popupContent += `<p><strong>${k.replace(/_/g,' ')}:</strong> ${displayVal}</p>`;
+                            });
+
+                            // Show coordinates for points (lat,lng)
+                            if (feature.geometry && feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates)) {
+                                const [lng, lat] = feature.geometry.coordinates;
+                                if (!isNaN(lat) && !isNaN(lng)) popupContent += `<p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
+                            }
+
+                            // Add a small button to view full JSON in popup
+                            const raw = JSON.stringify(feature.properties || {}, null, 2).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                            popupContent += `</div><details style="margin-top:6px;font-size:12px;"><summary style="cursor:pointer;">View full attributes (JSON)</summary><pre style="max-height:200px;overflow:auto;background:#f7f7f7;padding:8px;border-radius:4px;font-size:12px;">${raw}</pre></details>`;
                             layer.bindPopup(popupContent);
+                            try { layer.on && layer.on('click', function() { this.openPopup(); }); } catch (e) { /* ignore */ }
                         } catch (err) {
                             layer.bindPopup('<div class="building-popup">Custom building feature</div>');
+                            try { layer.on && layer.on('click', function() { this.openPopup(); }); } catch (e) { /* ignore */ }
                         }
                     }
                 });
                 // Add to map
                 if (window.map) {
-                    customBuildingsLayer.addTo(window.map);
-                    window.staticBuildingsLayer = customBuildingsLayer;
+                    // add global buildings layer to the map
+                    window.buildingsLayer.addTo(window.map);
+                    window.buildingsData = null;
+                    // Add to layer control so visibility can be toggled (use unified name)
+                    try {
+                        if (window.ctlLayers) {
+                            removeOverlayByName('🏢 Buildings');
+                            window.ctlLayers.addOverlay(window.buildingsLayer, '🏢 Buildings');
+                        }
+                    } catch (e) { /* ignore non-fatal */ }
                     // Fit map to bounds
-                    if (customBuildingsLayer.getBounds && customBuildingsLayer.getBounds().isValid()) {
-                        window.map.fitBounds(customBuildingsLayer.getBounds().pad(0.1));
+                    if (window.buildingsLayer.getBounds && window.buildingsLayer.getBounds().isValid()) {
+                        window.map.fitBounds(window.buildingsLayer.getBounds().pad(0.1));
                     }
                     alert(`✅ Custom buildings data loaded successfully! (${transformedGeoJSON.features.length} features)`);
+                    // Clear file inputs and labels so the user can upload again (overwrite)
+                    try {
+                        const buildingUploadInputEl = document.getElementById('custom-building-upload');
+                        const genericUploadInputEl = document.getElementById('custom-data-upload');
+                        if (buildingUploadInputEl) {
+                            buildingUploadInputEl.value = '';
+                            const label = buildingUploadInputEl.parentElement && buildingUploadInputEl.parentElement.querySelector('.custom-file-label');
+                            if (label) label.textContent = 'Choose file...';
+                        }
+                        if (genericUploadInputEl) {
+                            genericUploadInputEl.value = '';
+                            const label2 = genericUploadInputEl.parentElement && genericUploadInputEl.parentElement.querySelector('.custom-file-label');
+                            if (label2) label2.textContent = 'Choose file...';
+                        }
+                    } catch (e) { /* ignore non-fatal */ }
                 } else {
                     alert('⚠️ Map not available. Please refresh the page and try again.');
                 }
@@ -749,8 +908,9 @@ function initializeWorkflow() {
                     console.warn('⚠️ Unknown CRS, assuming WGS84');
                 }
                 
-                // Transform if needed
-                if (isSwissCoordinates && typeof swissToWGS84 === 'function') {
+                // Transform if needed — prefer the window-scoped swissToWGS84 if present
+                const hasSwissFn = (typeof window !== 'undefined' && typeof window.swissToWGS84 === 'function') || (typeof swissToWGS84 === 'function');
+                if (isSwissCoordinates && hasSwissFn) {
                     console.log('🔄 Converting Swiss → WGS84...');
                     return transformSwissToWGS84(geojsonData);
                 } else if (isSwissCoordinates) {
@@ -776,11 +936,18 @@ function initializeWorkflow() {
                     
                     function transformCoordArray(coords) {
                         if (typeof coords[0] === 'number' && coords.length >= 2) {
-                            const [east, north] = coords;
-                            if (!isNaN(east) && !isNaN(north)) {
-                                const wgs84 = swissToWGS84(east, north);
-                                return [wgs84.lng, wgs84.lat];
-                            }
+                                    const [east, north] = coords;
+                                    if (!isNaN(east) && !isNaN(north)) {
+                                        // Use window.swissToWGS84 if available (more robust across load order)
+                                        const conv = (typeof window !== 'undefined' && typeof window.swissToWGS84 === 'function') ? window.swissToWGS84 : (typeof swissToWGS84 === 'function' ? swissToWGS84 : null);
+                                        if (conv) {
+                                            const wgs84 = conv(east, north);
+                                            return [wgs84.lng, wgs84.lat];
+                                        } else {
+                                            // No conversion function available, return original coords
+                                            return coords;
+                                        }
+                                    }
                         }
                         return Array.isArray(coords) ? coords.map(transformCoordArray) : coords;
                     }
@@ -812,13 +979,76 @@ function initializeWorkflow() {
         const buildingsToggle = document.getElementById('buildings-toggle');
         
         if (buildingsToggle) {
+            // Helper: enable toggle only when zoom >= 15
+            const updateToggleAvailability = () => {
+                try {
+                    if (!window.map || typeof window.map.getZoom !== 'function') return;
+                    const z = window.map.getZoom();
+                    // Enable toggle when zoom >= 15, otherwise disable and remove buildings
+                    if (z >= 15) {
+                        buildingsToggle.disabled = false;
+                    } else {
+                        // If currently enabled, remove buildings because we're too zoomed out
+                        if (buildingsToggle.checked) {
+                            buildingsToggle.checked = false;
+                            removeBuildingsData();
+                        }
+                        buildingsToggle.disabled = true;
+                    }
+                } catch (e) { /* ignore */ }
+            };
+
+            // Attach zoom handler to update toggle availability
+            try {
+                if (window._buildingToggleZoomHandler && window.map) {
+                    window.map.off('zoomend', window._buildingToggleZoomHandler);
+                }
+                window._buildingToggleZoomHandler = updateToggleAvailability;
+                if (window.map) window.map.on('zoomend', window._buildingToggleZoomHandler);
+                // Run once to initialize state
+                updateToggleAvailability();
+            } catch (e) { /* ignore */ }
+
             buildingsToggle.addEventListener('change', function(e) {
                 buildingsEnabled = e.target.checked;
                 console.log('Buildings toggle:', buildingsEnabled);
-                
+
                 if (buildingsEnabled) {
-                    // Add buildings layer to map
-                    console.log('Adding buildings layer...');
+                    // Only fetch buildings if zoom is sufficient and map is available
+                    if (!window.map || typeof window.map.getZoom !== 'function') {
+                        alert('Map not ready');
+                        buildingsToggle.checked = false;
+                        buildingsEnabled = false;
+                        return;
+                    }
+                    const z = window.map.getZoom();
+                    if (z < 15) {
+                        alert('Zoom in to level 15 or more to load buildings.');
+                        buildingsToggle.checked = false;
+                        buildingsEnabled = false;
+                        return;
+                    }
+
+                    // Compute current map view bbox (WGS84) and convert to Swiss LV95 for Supabase
+                    try {
+                        const bounds = window.map.getBounds();
+                        const sw = bounds.getSouthWest();
+                        const ne = bounds.getNorthEast();
+                        // convert to Swiss LV95 if converter available
+                        if (typeof window.WGS84ToSwiss === 'function') {
+                            const minSwiss = window.WGS84ToSwiss(sw.lng, sw.lat);
+                            const maxSwiss = window.WGS84ToSwiss(ne.lng, ne.lat);
+                            window.currentBBox = [minSwiss.east, minSwiss.north, maxSwiss.east, maxSwiss.north];
+                        } else {
+                            window.currentBBox = [sw.lng, sw.lat, ne.lng, ne.lat];
+                        }
+                        console.log('📦 Set window.currentBBox (from map view) for Supabase:', window.currentBBox);
+                    } catch (err) {
+                        console.warn('⚠️ Could not compute map bbox for Supabase query', err);
+                    }
+
+                    // Trigger the buildings load for the current bbox
+                    console.log('Adding buildings layer for current map view...');
                     loadBuildingsData();
                 } else {
                     // Remove buildings layer from map
@@ -867,9 +1097,11 @@ function initializeWorkflow() {
                 return;
             }
 
-            // Remove existing buildings layer if present
-            if (window.staticBuildingsLayer) {
-                window.map.removeLayer(window.staticBuildingsLayer);
+            // Remove existing buildings layer if present (single variable)
+            if (window.buildingsLayer) {
+                try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
+                window.buildingsLayer = null;
+                window.buildingsData = null;
             }
 
             // Transform Swiss coordinates to WGS84 and create markers
@@ -904,7 +1136,8 @@ function initializeWorkflow() {
                         color: '#000',
                         weight: 1,
                         opacity: 1,
-                        fillOpacity: 0.8
+                        fillOpacity: 0.8,
+                        interactive: true
                     });
 
                     // Create popup content
@@ -921,6 +1154,7 @@ function initializeWorkflow() {
                     `;
 
                     marker.bindPopup(popupContent);
+                    try { marker.on('click', function() { this.openPopup(); }); } catch (e) { /* ignore */ }
                     buildingMarkers.push(marker);
 
                 } catch (error) {
@@ -930,8 +1164,8 @@ function initializeWorkflow() {
 
             // Create layer group and add to map
             if (buildingMarkers.length > 0) {
-                window.staticBuildingsLayer = L.layerGroup(buildingMarkers);
-                window.staticBuildingsLayer.addTo(window.map);
+                window.buildingsLayer = L.layerGroup(buildingMarkers);
+                window.buildingsLayer.addTo(window.map);
                 
                 console.log(`✅ Added ${buildingMarkers.length} buildings to map`);
                 
@@ -957,13 +1191,249 @@ function initializeWorkflow() {
             window.removeBuildingsFromMap();
         }
         
-        // Remove static buildings layer
-        if (window.staticBuildingsLayer && window.map) {
-            window.map.removeLayer(window.staticBuildingsLayer);
-            window.staticBuildingsLayer = null;
-            console.log('✅ Static buildings layer removed');
+        // Remove any displayed buildings layer
+        if (window.buildingsLayer && window.map) {
+            try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
+            window.buildingsLayer = null;
+            window.buildingsData = null;
+            console.log('✅ Buildings layer removed');
+        }
+        // Also remove any plain building layer reference
+        try {
+            if (window.buildingsPlainLayer && window.map && window.map.hasLayer(window.buildingsPlainLayer)) {
+                window.map.removeLayer(window.buildingsPlainLayer);
+            }
+            window.buildingsPlainLayer = null;
+        } catch (e) { /* ignore */ }
+        // Remove any buildings overlay entries from layer control
+        try {
+            if (window.ctlLayers) removeOverlayByName('🏢 Buildings');
+        } catch (e) { /* ignore */ }
+        // Remove zoom toggle handler if present
+        try {
+            if (window._buildingsZoomToggleHandler && window.map) {
+                window.map.off('zoomend', window._buildingsZoomToggleHandler);
+                window._buildingsZoomToggleHandler = null;
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // Single canonical function to add buildings to the map
+    // Accepts either a GeoJSON FeatureCollection or an array of Supabase records
+    // Helper: remove overlay(s) from layer control by display name
+    function removeOverlayByName(name) {
+        // Remove any overlay whose name matches or contains the provided name.
+        // This helps cleaning up earlier variants like '🏢 Buildings (plain)' or
+        // '🏢 Buildings (clustered)' so we only ever keep one buildings overlay.
+        if (!window.ctlLayers || !window.ctlLayers._layers) return;
+        try {
+            Object.keys(window.ctlLayers._layers).forEach(k => {
+                const item = window.ctlLayers._layers[k];
+                if (!item || !item.name || !item.layer) return;
+                try {
+                    // Match exact or substring (case-sensitive for emoji/name stability)
+                    if (item.name === name || item.name.indexOf(name) === 0 || item.name.includes(name)) {
+                        try { window.ctlLayers.removeLayer(item.layer); } catch (e) { /* ignore */ }
+                    }
+                } catch (e) { /* ignore per-item errors */ }
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    // Helper to build building popup HTML from properties and optional geometry
+    function buildBuildingPopupContent(props = {}, geometry = null) {
+        try {
+            const priority = ['EGID','GGDENAME','GDEKT','GKAT','GBAUJ','GAREA','GVOL','id','name','address','adresse','egid','gkd','gkode'];
+            const used = new Set();
+            let html = `<div class="building-popup"><h6><strong>🏢 Building</strong></h6>`;
+
+            for (const key of priority) {
+                if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== undefined && props[key] !== '') {
+                    const displayKey = key.replace(/_/g,' ');
+                    let val = props[key];
+                    if (typeof val === 'number') val = val.toLocaleString();
+                    html += `<p><strong>${displayKey}:</strong> ${String(val)}</p>`;
+                    used.add(key);
+                }
+            }
+
+            Object.keys(props).forEach(k => {
+                if (used.has(k)) return;
+                const v = props[k];
+                if (v === null || v === undefined || v === '') return;
+                let displayVal;
+                if (typeof v === 'object') {
+                    try { displayVal = JSON.stringify(v); } catch(e) { displayVal = String(v); }
+                } else {
+                    displayVal = String(v);
+                }
+                if (displayVal.length > 300) displayVal = displayVal.slice(0,300) + '…';
+                html += `<p><strong>${k.replace(/_/g,' ')}:</strong> ${displayVal}</p>`;
+            });
+
+            // Coordinates if geometry point
+            if (geometry && geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
+                const [lng, lat] = geometry.coordinates;
+                if (!isNaN(lat) && !isNaN(lng)) html += `<p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
+            }
+
+            const raw = JSON.stringify(props || {}, null, 2).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            html += `</div><details style="margin-top:6px;font-size:12px;"><summary style="cursor:pointer;">View full attributes (JSON)</summary><pre style="max-height:200px;overflow:auto;background:#f7f7f7;padding:8px;border-radius:4px;font-size:12px;">${raw}</pre></details>`;
+            return html;
+        } catch (err) {
+            return `<div class="building-popup"><h6><strong>🏢 Building</strong></h6><p>Attributes unavailable</p></div>`;
         }
     }
+
+    window.addBuildingsToMap = async function(data) {
+        console.log('🗺️ window.addBuildingsToMap called');
+        if (!window.map) { console.error('❌ Map not initialized'); return; }
+
+        // Remove existing buildings layer and any cluster/plain layers and handlers
+        if (window.buildingsLayer) {
+            try { window.map.removeLayer(window.buildingsLayer); } catch (e) { /* ignore */ }
+            window.buildingsLayer = null;
+            window.buildingsData = null;
+            console.log('🗑️ Existing buildings layer removed');
+        }
+        // Remove previous plain building layer if present (clusters are not used)
+        try {
+            if (window.buildingsPlainLayer && window.map && window.map.hasLayer(window.buildingsPlainLayer)) {
+                window.map.removeLayer(window.buildingsPlainLayer);
+            }
+            window.buildingsPlainLayer = null;
+        } catch (e) { /* ignore */ }
+        // Remove previous zoom handler if set (leftover from cluster/zoom toggle behaviour)
+        try {
+            if (window._buildingsZoomToggleHandler && window.map) {
+                try { window.map.off('zoomend', window._buildingsZoomToggleHandler); } catch(e) {}
+            }
+            // clear to avoid dangling references
+            window._buildingsZoomToggleHandler = null;
+        } catch (e) { /* ignore */ }
+
+        // If GeoJSON FeatureCollection
+        if (data && data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+            console.log('🔎 Detected GeoJSON FeatureCollection');
+            try {
+                const layer = L.geoJSON(data, {
+                    pointToLayer: function(feature, latlng) {
+                        return L.circleMarker(latlng, { radius: 6, fillColor: '#ff7800', color: '#000', weight:1, fillOpacity:0.8, interactive:true });
+                    },
+                    style: function(feature) { return { color:'#ff7800', weight:2, fillColor:'#ffd580', fillOpacity:0.5 }; },
+                    onEachFeature: function(feature, layer) {
+                        try {
+                            const p = feature.properties || {};
+                            const html = buildBuildingPopupContent(p, feature.geometry);
+                            layer.bindPopup(html);
+                        } catch (e) { layer.bindPopup('<div class="building-popup">Building feature</div>'); }
+                    }
+                });
+                layer.addTo(window.map);
+                window.buildingsLayer = layer;
+                window.buildingsData = null;
+                // Add to layer control so visibility can be toggled (use unified name)
+                try {
+                    if (window.ctlLayers) {
+                        removeOverlayByName('🏢 Buildings');
+                        window.ctlLayers.addOverlay(window.buildingsLayer, '🏢 Buildings');
+                    }
+                } catch (e) { console.warn('⚠️ Could not add buildings layer to layer control', e); }
+                console.log(`✅ Added ${data.features.length} custom GeoJSON building features`);
+                try { if (layer.getBounds && layer.getBounds().isValid()) window.map.fitBounds(layer.getBounds().pad(0.1)); } catch(e){}
+            } catch (err) {
+                console.error('❌ Error adding GeoJSON buildings:', err);
+                alert('Error adding GeoJSON buildings. See console.');
+            }
+            return;
+        }
+
+        // If array of Supabase records: create a single plain layer (no clustering)
+        if (Array.isArray(data)) {
+            console.log('🔎 Detected Supabase records array (creating plain markers only)');
+            const plainLayer = L.layerGroup();
+            const coords = [];
+            let added = 0;
+
+            // Chunked rendering for large datasets to keep UI responsive
+            const CHUNK_SIZE = 500; // number of records to process per chunk
+            const CHUNK_DELAY_MS = 50; // delay between chunks to yield to UI
+
+            const createMarkersForSlice = (slice) => {
+                const markers = [];
+                slice.forEach(b => {
+                    try {
+                        if (b.GKODE && b.GKODN) {
+                            const conv = (typeof window.swissToWGS84 === 'function') ? window.swissToWGS84 : (typeof swissToWGS84 === 'function' ? swissToWGS84 : null);
+                            const w = conv ? conv(b.GKODE, b.GKODN) : null;
+                            if (w && !isNaN(w.lat) && !isNaN(w.lng)) {
+                                const m = L.circleMarker([w.lat, w.lng], { radius:8, fillColor:'#e49321ff', color:'#0b0b0bff', weight:2, fillOpacity:0.7, interactive:true });
+                                
+                                // IMPORTANT: Attach building properties as feature so spatial analysis can access them
+                                m.feature = {
+                                    type: 'Feature',
+                                    geometry: {
+                                        type: 'Point',
+                                        coordinates: [w.lng, w.lat]
+                                    },
+                                    properties: b || {}
+                                };
+                                
+                                const props = b || {};
+                                const html = buildBuildingPopupContent(props, null);
+                                m.bindPopup(html);
+                                try { m.on && m.on('click', function(){ this.openPopup(); }); } catch(e){}
+                                markers.push(m);
+                                coords.push([w.lat, w.lng]);
+                                added++;
+                            }
+                        }
+                    } catch(e){ console.warn('⚠️ Error processing record', e); }
+                });
+                return markers;
+            };
+
+            // Process in chunks
+            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                const slice = data.slice(i, i + CHUNK_SIZE);
+                const markers = createMarkersForSlice(slice);
+                if (markers.length > 0) {
+                    try { markers.forEach(m => plainLayer.addLayer(m)); } catch(e) { markers.forEach(m => plainLayer.addLayer(m)); }
+                }
+                console.log(`🔁 Rendered ${Math.min(i + CHUNK_SIZE, data.length)} / ${data.length} building records`);
+                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
+            }
+
+            if (added > 0) {
+                plainLayer.addTo(window.map);
+                window.buildingsPlainLayer = plainLayer;
+                // Canonical buildingsLayer is the plain layer
+                window.buildingsLayer = plainLayer;
+                window.buildingsData = data;
+                try {
+                    if (window.ctlLayers) {
+                        removeOverlayByName('🏢 Buildings');
+                        window.ctlLayers.addOverlay(plainLayer, '🏢 Buildings');
+                    }
+                } catch (e) { console.warn('⚠️ Could not add Supabase buildings layer to layer control', e); }
+                console.log(`✅ Added ${added} Supabase building markers (chunked, plain)`);
+                try {
+                    if (plainLayer && typeof plainLayer.getLayers === 'function' && plainLayer.getLayers().length > 0) {
+                        const g = new L.featureGroup(plainLayer.getLayers());
+                        window.map.fitBounds(g.getBounds().pad(0.1));
+                    } else if (coords.length === 1) {
+                        window.map.setView(coords[0], 15);
+                    }
+                } catch(e){}
+            } else {
+                console.warn('⚠️ No valid Supabase building markers created');
+                alert('No valid building markers created');
+            }
+            return;
+        }
+
+        console.error('❌ addBuildingsToMap received unsupported data type');
+    };
     
     // Vulnerability controls functionality
     function initializeVulnerabilityControls() {
@@ -973,7 +1443,7 @@ function initializeWorkflow() {
             showCurvesBtn.addEventListener('click', function() {
                 console.log('Show vulnerability curves clicked');
                 // Implement vulnerability curves display
-                alert('Vulnerability curves will be displayed here');
+                //alert('Vulnerability curves will be displayed here');
             });
         }
     }
@@ -983,26 +1453,489 @@ function initializeWorkflow() {
         const runAnalysisBtn = document.getElementById('run-analysis-btn');
         const showResultsBtn = document.getElementById('show-results-btn');
         
+        // Initialize show results button as disabled
+        if (showResultsBtn) {
+            showResultsBtn.disabled = true;
+        }
+        
         if (runAnalysisBtn) {
-            runAnalysisBtn.addEventListener('click', function() {
-                console.log('Run analysis clicked');
-                // Implement analysis functionality
-                alert('Analysis will be run here');
+            runAnalysisBtn.addEventListener('click', async function() {
+                console.log('🎯 Run analysis clicked - starting spatial analysis with Turf.js...');
                 
-                // Enable show results button after analysis
-                if (showResultsBtn) {
-                    showResultsBtn.disabled = false;
+                try {
+                    // Check if Turf.js is available
+                    if (typeof turf === 'undefined') {
+                        alert('❌ Turf.js library not available. Please refresh the page and try again.');
+                        return;
+                    }
+                    
+                    // Check if we have all required data
+                    if (!window.drawnPolygon) {
+                        alert('⚠️ Please draw a polygon on the map first.');
+                        return;
+                    }
+                    
+                    if (!window.buildingsLayer) {
+                        alert('⚠️ Buildings layer not available. Please ensure buildings are loaded on the map.');
+                        return;
+                    }
+                    
+                    if (!window.hazardLayer) {
+                        alert('⚠️ Hazard layer not available. Please ensure a hazard is selected and displayed.');
+                        return;
+                    }
+                    
+                    // Disable button during analysis
+                    runAnalysisBtn.disabled = true;
+                    runAnalysisBtn.textContent = 'Running Step 1 Analysis...';
+                    
+                    console.log('📊 Starting Step 1: Extract data inside polygon with Turf.js:');
+                    console.log('  - Polygon:', window.drawnPolygon);
+                    console.log('  - Buildings layer:', window.buildingsLayer);
+                    console.log('  - Hazard layer:', window.hazardLayer);
+                    console.log('  - Selected hazard:', window.selectedHazard);
+                    
+                    // Perform Step 1: Extract data inside polygon
+                    const extractionResults = await window.extractDataInsidePolygon(
+                        window.drawnPolygon,
+                        window.buildingsLayer,
+                        window.hazardLayer
+                    );
+                    
+                    console.log('✅ Step 1 extraction completed:', extractionResults);
+                    
+                    // Store results globally for next steps
+                    window.latestExtractionResults = extractionResults;
+                    
+                    // Enable the show results button
+                    if (showResultsBtn) {
+                        showResultsBtn.disabled = false;
+                        console.log('✅ Show results button enabled');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Spatial analysis failed:', error);
+                    alert(`❌ Analysis failed: ${error.message}\n\nPlease check the console for details.`);
+                } finally {
+                    // Re-enable button and restore text
+                    runAnalysisBtn.disabled = false;
+                    runAnalysisBtn.textContent = 'Run Analysis';
                 }
             });
         }
         
         if (showResultsBtn) {
             showResultsBtn.addEventListener('click', function() {
-                console.log('Show results clicked');
-                // Implement results display
-                alert('Results will be displayed here');
+                console.log('📊 Show results clicked');
+                
+                // Check if we have latest extraction results
+                if (!window.latestExtractionResults) {
+                    alert('⚠️ No analysis results available. Please run an analysis first.');
+                    return;
+                }
+                
+                // Show the analysis results modal
+                showAnalysisResultsModal(window.latestExtractionResults);
             });
         }
+    }
+    
+    // Function to show the analysis results modal
+    function showAnalysisResultsModal(extractionResults) {
+        console.log('📊 Showing analysis results modal with data:', extractionResults);
+        
+        const modal = document.getElementById('analysis-results-modal');
+        if (!modal) {
+            console.error('❌ Analysis results modal not found');
+            return;
+        }
+        
+        // Populate summary statistics
+        populateAnalysisSummary(extractionResults);
+        
+        // Create AG Grid table with buildings analyzed data
+        createAnalysisAGGridTable(extractionResults.buildingsAnalyzed);
+        
+        // Show the modal
+        modal.style.display = 'block';
+        
+        // Set up close button handler (remove previous handlers first)
+        const closeBtn = document.getElementById('close-analysis-results-modal');
+        if (closeBtn) {
+            closeBtn.onclick = function() {
+                modal.style.display = 'none';
+            };
+        }
+        
+        // Close modal when clicking outside
+        modal.onclick = function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+    }
+    
+    // Function to populate analysis summary
+    function populateAnalysisSummary(extractionResults) {
+        const summaryContent = document.getElementById('analysis-summary-content');
+        if (!summaryContent) return;
+        
+        const buildingsInside = extractionResults.buildingsInside || [];
+        const buildingsAnalyzed = extractionResults.buildingsAnalyzed || [];
+        const hazardsInside = extractionResults.hazardsInside || [];
+        
+        // Calculate statistics
+        const totalBuildings = buildingsInside.length;
+        const buildingsWithHazard = buildingsAnalyzed.length;
+        const buildingsNoHazard = totalBuildings - buildingsWithHazard;
+        const hazardCoverage = totalBuildings > 0 ? ((buildingsWithHazard / totalBuildings) * 100).toFixed(1) : 0;
+        
+        // Count by intensity
+        const intensityCount = {};
+        buildingsAnalyzed.forEach(building => {
+            const intensity = building.intensity || 'Unknown';
+            intensityCount[intensity] = (intensityCount[intensity] || 0) + 1;
+        });
+        
+        // Create summary HTML
+        const summaryHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>📊 Basic Statistics</h5>
+                    <p><strong>Total Buildings in Polygon:</strong> ${totalBuildings}</p>
+                    <p><strong>Buildings with Hazard Exposure:</strong> ${buildingsWithHazard}</p>
+                    <p><strong>Buildings with No Hazard:</strong> ${buildingsNoHazard}</p>
+                    <p><strong>Hazard Coverage:</strong> ${hazardCoverage}%</p>
+                    <p><strong>Total Hazard Features:</strong> ${hazardsInside.length}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5>🚨 Intensity Distribution</h5>
+                    ${Object.keys(intensityCount).map(intensity => 
+                        `<p><strong>${intensity}:</strong> ${intensityCount[intensity]} buildings</p>`
+                    ).join('')}
+                </div>
+            </div>
+            <div class="mt-3">
+                <small class="text-muted">
+                    Analysis completed: ${new Date().toLocaleString()} | 
+                    Selected hazard: ${window.selectedHazard || 'Unknown'}
+                </small>
+            </div>
+        `;
+        
+        summaryContent.innerHTML = summaryHTML;
+    }
+    
+    // Function to create AG Grid table with buildings analyzed data
+    function createAnalysisAGGridTable(buildingsAnalyzed) {
+        console.log('📊 Creating AG Grid table with buildings analyzed data (Updated version - no deprecated props):', buildingsAnalyzed);
+        
+        const gridContainer = document.getElementById('analysis-ag-grid');
+        if (!gridContainer) {
+            console.error('❌ AG Grid container not found');
+            return;
+        }
+        
+        // Clear any existing grid
+        gridContainer.innerHTML = '';
+        
+        if (!buildingsAnalyzed || buildingsAnalyzed.length === 0) {
+            gridContainer.innerHTML = 
+                '<div class="text-center p-4"><h5>No buildings with hazard intersections found</h5></div>';
+            return;
+        }
+        
+        // Prepare row data for AG Grid
+        const rowData = buildingsAnalyzed.map((building, index) => ({
+            index: index + 1,
+            egid: building.buildingProperties?.EGID || 'N/A',
+            buildingName: building.buildingProperties?.GGDENAME || 'N/A',
+            canton: building.buildingProperties?.GDEKT || 'N/A',
+            category: building.buildingProperties?.GKAT || 'N/A',
+            constructionYear: building.buildingProperties?.GBAUJ || 'N/A',
+            area: building.buildingProperties?.GAREA || 'N/A',
+            volume: building.buildingProperties?.GVOL || 'N/A',
+            apartments: building.buildingProperties?.GANZWHG || 'N/A',
+            hazardType: building.hazardType || 'N/A',
+            hazardIntensity: building.intensity || 'None',
+            hazardRecurrence: building.recurrence || 'None',
+            originalBuildingId: building.originalBuildingId || 'N/A'
+        }));
+        
+        // Define column definitions
+        const columnDefs = [
+            {
+                headerName: 'Index',
+                field: 'index',
+                width: 80,
+                cellStyle: { fontWeight: 'bold' }
+            },
+            {
+                headerName: 'EGID',
+                field: 'egid',
+                width: 120,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Building Name',
+                field: 'buildingName',
+                width: 150,
+                filter: 'agTextColumnFilter',
+                tooltipField: 'buildingName'
+            },
+            {
+                headerName: 'Canton',
+                field: 'canton',
+                width: 100,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Category',
+                field: 'category',
+                width: 120,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Construction Year',
+                field: 'constructionYear',
+                width: 140,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Area (m²)',
+                field: 'area',
+                width: 120,
+                filter: 'agTextColumnFilter',
+                valueFormatter: params => params.value !== 'N/A' ? Number(params.value).toLocaleString() : 'N/A'
+            },
+            {
+                headerName: 'Volume (m³)',
+                field: 'volume',
+                width: 130,
+                filter: 'agTextColumnFilter',
+                valueFormatter: params => params.value !== 'N/A' ? Number(params.value).toLocaleString() : 'N/A'
+            },
+            {
+                headerName: 'Apartments',
+                field: 'apartments',
+                width: 110,
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Hazard Type',
+                field: 'hazardType',
+                width: 120,
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#fff3cd' }
+            },
+            {
+                headerName: 'Hazard Intensity',
+                field: 'hazardIntensity',
+                width: 130,
+                filter: 'agTextColumnFilter',
+                cellStyle: params => {
+                    const intensity = params.value?.toLowerCase();
+                    if (intensity?.includes('forte') || intensity?.includes('high')) {
+                        return { backgroundColor: '#f8d7da', fontWeight: 'bold' };
+                    } else if (intensity?.includes('moyenne') || intensity?.includes('medium')) {
+                        return { backgroundColor: '#fff3cd', fontWeight: 'bold' };
+                    } else if (intensity?.includes('faible') || intensity?.includes('low')) {
+                        return { backgroundColor: '#d1edff', fontWeight: 'bold' };
+                    }
+                    return { backgroundColor: '#f8f9fa' };
+                }
+            },
+            {
+                headerName: 'Hazard Recurrence',
+                field: 'hazardRecurrence',
+                width: 140,
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#fff3cd' }
+            },
+            {
+                headerName: 'Original Building ID',
+                field: 'originalBuildingId',
+                width: 160,
+                filter: 'agTextColumnFilter'
+            }
+        ];
+        
+        // Grid options
+        const gridOptions = {
+            columnDefs: columnDefs,
+            rowData: rowData,
+            defaultColDef: {
+                sortable: true,
+                resizable: true,
+                filter: true,
+                floatingFilter: true
+            },
+            pagination: true,
+            paginationPageSize: 50,
+            rowSelection: {
+                mode: 'multiRow',
+                enableClickSelection: true
+            },
+            animateRows: true,
+            getRowStyle: params => {
+                if (params.node.rowIndex % 2 === 0) {
+                    return { backgroundColor: '#f8f9fa' };
+                }
+                return { backgroundColor: '#ffffff' };
+            },
+            onGridReady: function(params) {
+                console.log('✅ AG Grid ready with', rowData.length, 'rows');
+                // Auto-size columns to fit content
+                params.api.sizeColumnsToFit();
+            }
+        };
+        
+        // Create the grid
+        try {
+            // Use the correct AG Grid API
+            agGrid.createGrid(gridContainer, gridOptions);
+            console.log('✅ AG Grid table created successfully');
+        } catch (error) {
+            console.error('❌ Error creating AG Grid table:', error);
+            gridContainer.innerHTML = 
+                '<div class="text-center p-4 text-danger"><h5>Error creating table visualization</h5><p>' + error.message + '</p></div>';
+        }
+    }
+    
+    // Function to display detailed analysis results
+    function displayAnalysisResults(results) {
+        console.log('📊 Displaying analysis results:', results);
+        
+        if (!results || !results.success) {
+            alert('❌ Invalid analysis results');
+            return;
+        }
+        
+        const summary = results.summary;
+        const buildingsAnalyzed = results.buildingsAnalyzed;
+        const hazardType = results.hazardType;
+        
+        // Create detailed results message
+        let resultsMessage = `🎯 SPATIAL ANALYSIS RESULTS (Turf.js)\n`;
+        resultsMessage += `═══════════════════════════════════════\n\n`;
+        resultsMessage += `📊 SUMMARY STATISTICS:\n`;
+        resultsMessage += `• Total buildings analyzed: ${summary.totalBuildings}\n`;
+        resultsMessage += `• Buildings with hazard exposure: ${summary.buildingsWithHazard}\n`;
+        resultsMessage += `• Buildings with no hazard exposure: ${summary.buildingsNoHazard}\n`;
+        resultsMessage += `• Hazard coverage: ${summary.hazardCoverage}%\n`;
+        resultsMessage += `• Hazard type: ${hazardType}\n\n`;
+        
+        resultsMessage += `🚨 RISK DISTRIBUTION:\n`;
+        resultsMessage += `• Very High Risk: ${summary.riskDistribution.very_high} buildings\n`;
+        resultsMessage += `• High Risk: ${summary.riskDistribution.high} buildings\n`;
+        resultsMessage += `• Medium Risk: ${summary.riskDistribution.medium} buildings\n`;
+        resultsMessage += `• Low Risk: ${summary.riskDistribution.low} buildings\n`;
+        resultsMessage += `• Unknown Risk: ${summary.riskDistribution.unknown} buildings\n\n`;
+        
+        resultsMessage += `📅 Analysis completed: ${new Date(results.timestamp).toLocaleString()}\n\n`;
+        
+        // Show limited number of detailed building results
+        const maxDetails = 5;
+        if (buildingsAnalyzed.length > 0) {
+            resultsMessage += `🏢 SAMPLE BUILDING DETAILS (showing ${Math.min(maxDetails, buildingsAnalyzed.length)} of ${buildingsAnalyzed.length}):\n`;
+            resultsMessage += `─────────────────────────────\n`;
+            
+            for (let i = 0; i < Math.min(maxDetails, buildingsAnalyzed.length); i++) {
+                const building = buildingsAnalyzed[i];
+                const hazardInfo = building.hazardInfo;
+                
+                resultsMessage += `Building ${i + 1}:\n`;
+                resultsMessage += `  • ID: ${building.building.id}\n`;
+                resultsMessage += `  • Risk Level: ${hazardInfo.riskLevel}\n`;
+                
+                if (hazardInfo.recurrence) {
+                    resultsMessage += `  • Recurrence Period: ${hazardInfo.recurrence}\n`;
+                }
+                if (hazardInfo.intensity) {
+                    resultsMessage += `  • Intensity: ${hazardInfo.intensity}\n`;
+                }
+                
+                resultsMessage += `  • Hazard Overlaps: ${building.overlappingHazards.length}\n\n`;
+            }
+            
+            if (buildingsAnalyzed.length > maxDetails) {
+                resultsMessage += `... and ${buildingsAnalyzed.length - maxDetails} more buildings\n`;
+            }
+        }
+        
+        // Display results in a scrollable alert/modal
+        alert(resultsMessage);
+        
+        // Also log detailed results to console for developers
+        console.log('📋 Complete analysis results:', results);
+        console.log('🏢 Building details:', buildingsAnalyzed);
+        
+        // Optionally highlight analyzed buildings on map
+        highlightAnalyzedBuildings(buildingsAnalyzed);
+    }
+    
+    // Function to highlight analyzed buildings on the map
+    function highlightAnalyzedBuildings(analyzedBuildings) {
+        if (!window.map || !analyzedBuildings || analyzedBuildings.length === 0) {
+            return;
+        }
+        
+        console.log('🎨 Highlighting analyzed buildings on map...');
+        
+        // Remove any existing highlight layer
+        if (window.analysisHighlightLayer) {
+            window.map.removeLayer(window.analysisHighlightLayer);
+        }
+        
+        // Create new layer group for highlights
+        window.analysisHighlightLayer = L.layerGroup();
+        
+        analyzedBuildings.forEach((buildingAnalysis, index) => {
+            const building = buildingAnalysis.building;
+            const riskLevel = buildingAnalysis.hazardInfo.riskLevel;
+            
+            if (building.latLng) {
+                // Define colors for risk levels
+                const riskColors = {
+                    'very_high': '#FF0000',  // Red
+                    'high': '#FF8C00',       // Orange
+                    'medium': '#FFD700',     // Gold
+                    'low': '#90EE90',        // Light Green
+                    'unknown': '#808080'     // Gray
+                };
+                
+                const color = riskColors[riskLevel] || '#808080';
+                
+                // Create a circle marker for each building
+                const marker = L.circleMarker(building.latLng, {
+                    radius: 8,
+                    fillColor: color,
+                    color: '#000',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+                
+                // Add popup with building information
+                marker.bindPopup(`
+                    <div>
+                        <h6>Building Analysis Result</h6>
+                        <strong>Building ID:</strong> ${building.id}<br>
+                        <strong>Risk Level:</strong> ${riskLevel}<br>
+                        <strong>Recurrence:</strong> ${buildingAnalysis.hazardInfo.recurrence || 'N/A'}<br>
+                        <strong>Intensity:</strong> ${buildingAnalysis.hazardInfo.intensity || 'N/A'}<br>
+                        <strong>Hazard Overlaps:</strong> ${buildingAnalysis.overlappingHazards.length}
+                    </div>
+                `);
+                
+                window.analysisHighlightLayer.addLayer(marker);
+            }
+        });
+        
+        // Add highlight layer to map
+        window.map.addLayer(window.analysisHighlightLayer);
+        
+        console.log(`✅ Highlighted ${analyzedBuildings.length} analyzed buildings`);
     }
     
     // Check workflow progress and enable/disable buttons
@@ -1023,35 +1956,13 @@ function initializeWorkflow() {
         
         // Extract unique cantons from the Swiss administrative data
         // Based on the data structure found in suisse_admin_lim.js
-        const cantons = [
-            'Aargau',
-            'Appenzell Ausserrhoden',
-            'Appenzell Innerrhoden', 
-            'Basel-Landschaft',
-            'Basel-Stadt',
-            'Bern',
-            'Fribourg',
-            'Genève',
-            'Glarus',
-            'Graubünden',
-            'Jura',
-            'Luzern',
-            'Neuchâtel',
-            'Nidwalden',
-            'Obwalden',
-            'Schaffhausen',
-            'Schwyz',
-            'Solothurn',
-            'St. Gallen',
-            'Thurgau',
-            'Ticino',
-            'Uri',
-            'Valais',
-            'Vaud',
-            'Zug',
-            'Zürich'
-        ].sort(); // Sort alphabetically for better user experience
+        // const cantons = ['Aargau','Appenzell Ausserrhoden','Appenzell Innerrhoden','Basel-Landschaft',
+        //     'Basel-Stadt','Bern','Fribourg','Genève','Glarus','Graubünden','Jura','Luzern',
+        //     'Neuchâtel','Nidwalden','Obwalden','Schaffhausen','Schwyz','Solothurn','St. Gallen',
+        //     'Thurgau','Ticino','Uri','Valais','Vaud','Zug','Zürich'].sort(); // Sort alphabetically 
         
+        const cantons = ['Graubünden','Ticino','Valais'].sort(); // Sort alphabetically 
+    
         const cantonSelect = document.getElementById('canton-select');
         
         if (!cantonSelect) return;
@@ -1170,317 +2081,261 @@ function initializeWorkflow() {
     };
 }
 
-// Rockfall layer functionality
-let rockfallLayer = null;
+// === Unified hazard handling ===
+// Canonical hazard layer stored on window.hazardLayer
+window.hazardLayer = window.hazardLayer || null;
 
-function addRockfallLayer() {
-    // console.log('🪨 Adding rockfall layer...');
-    
-    // Check if rockfall_hazards is available
-    if (typeof rockfall_hazards === 'undefined') {
-        console.error('❌ rockfall_hazards data not available');
-        // alert('Hazards data not loaded. Please refresh the page.');
-        return;
-    }
-    
-    // Check if swissToWGS84 function is available
-    if (typeof swissToWGS84 !== 'function') {
-        console.error('❌ swissToWGS84 transformation function not available');
-        // alert('Coordinate transformation function not loaded. Please refresh the page.');
-        return;
-    }
-    
-    // Filter for rockfall features only
-    const rockfallFeatures = rockfall_hazards.features.filter(feature => 
-        feature.properties.subproc_sy === 'rock_fall'
-    );
-    
-    // console.log(`📊 Found ${rockfallFeatures.length} rockfall features`);
-    
-    if (rockfallFeatures.length === 0) {
-        // console.warn('⚠️ No rockfall features found');
-        // alert('No rockfall hazards found in the data.');
-        return;
-    }
-    
-    // Transform coordinates using existing swissToWGS84 function
-    const transformedFeatures = rockfallFeatures.map(feature => {
-        const newFeature = { ...feature };
-        
-        // Transform coordinates recursively
-        function transformCoordArray(coords) {
-            if (typeof coords[0] === 'number') {
-                // This is a coordinate pair [east, north]
-                const [east, north] = coords;
-                const wgs84 = swissToWGS84(east, north);
-                return [wgs84.lng, wgs84.lat]; // GeoJSON format: [lng, lat]
-            } else {
-                // This is an array of coordinate arrays, recurse
-                return coords.map(transformCoordArray);
+// Helper: remove overlay(s) from layer control by display name (global)
+function removeOverlayByName(name) {
+    if (!window.ctlLayers || !window.ctlLayers._layers) return;
+    try {
+        Object.keys(window.ctlLayers._layers).forEach(k => {
+            const item = window.ctlLayers._layers[k];
+            if (item && item.name === name && item.layer) {
+                try { window.ctlLayers.removeLayer(item.layer); } catch (e) { /* ignore */ }
             }
-        }
-        
-        newFeature.geometry = {
-            ...feature.geometry,
-            coordinates: transformCoordArray(feature.geometry.coordinates)
-        };
-        
-        return newFeature;
-    });
-    
-    // console.log('🔄 Coordinates transformed using swissToWGS84 function');
-    
-    // Sample first transformed coordinate for verification
-    // if (transformedFeatures[0]?.geometry?.coordinates) {
-    //     const sampleCoord = transformedFeatures[0].geometry.coordinates[0][0][0];
-    //     console.log('📍 Sample transformed coordinate:', sampleCoord);
-    // }
-    
-    // Create GeoJSON object with transformed features
-    const rockfallGeoJSON = {
-        type: "FeatureCollection",
-        features: transformedFeatures
-    };
-    
-    // Remove existing layer if present
-    if (rockfallLayer && window.map) {
-        window.map.removeLayer(rockfallLayer);
-    }
-    
-    // Create and add the rockfall layer
-    if (window.map) {
-        // Debug log for all classe_d_intensites values
-        rockfallGeoJSON.features.forEach(f => {
-            let raw = f.properties.classe_d_intensites;
-            if (typeof raw !== 'string') raw = ''; // alternative syntax --->  raw = typeof raw === 'string' ? raw :'
-            const norm = raw.trim().toLowerCase();
-            console.log('Rockfall feature intensity:', raw, '->', norm);
         });
-        rockfallLayer = L.geoJSON(rockfallGeoJSON, {
-            style: function(feature) {
-                let intensityRaw = feature.properties.classe_d_intensites;
-                if (typeof intensityRaw !== 'string') intensityRaw = '';
-                const intensity = intensityRaw.trim().toLowerCase();
-                let color, fillOpacity;
-                switch(intensity) {
-                    case 'forte':
-                        color = '#d73027';
-                        fillOpacity = 0.8;
-                        break;
-                    case 'moyenne':
-                        color = '#fcf11bff';
-                        fillOpacity = 0.6;
-                        break;
-                    case 'faible':
-                        color = '#4575b4';
-                        fillOpacity = 0.4;
-                        break;
-                    default:
-                        color = '#999999';
-                        fillOpacity = 0.3;
-                }
-                return {
-                    color: color,
-                    weight: 1,
-                    opacity: 1,
-                    fillColor: color,
-                    fillOpacity: fillOpacity
-                };
-            },
-            onEachFeature: function(feature, layer) {
-                // Add popup with hazard information
-                const props = feature.properties;
-                const popupContent = `
-                    <div style="font-size: 12px;">
-                        <h4>🪨 Chute de pierres / Crollo</h4>
-                        <p><strong>Canton:</strong> ${props.canton}</p>
-                        <p><strong>Classe d'intensité:</strong> ${props.classe_d_intensites}</p>
-                        <p><strong>Commentaire:</strong> ${props.commentaire || ''}</p>
-                        <p><strong>Désignation cantonale du processus:</strong> ${props.designation_cantonale_du_processus || ''}</p>
-                        <p><strong>Événement extrême:</strong> ${props.evenement_extreme ? 'Oui' : 'Non'}</p>
-                        <p><strong>Processus partiel pour intensité synoptique:</strong> ${props.processus_partiel_pour_intensite_synoptique || ''}</p>
-                        <p><strong>Propriétaire des données:</strong> ${props.proprietaire_des_donnees || ''}</p>
-                        <p><strong>Récurrence:</strong> ${props.recurrence || ''}</p>
-                        <p><strong>Sources pour les processus partiels complète:</strong> ${props.sources_pour_les_processus_partiels_complete || ''}</p>
-                    </div>
-                `;
-                layer.bindPopup(popupContent);
-            }
-        }).addTo(window.map);
-        
-        // console.log('✅ Rockfall layer added successfully');
-        // alert(`Rockfall layer added! Found ${rockfallFeatures.length} features.`);
-        
-        // Fit map to show the layer (center on Ticino)
-        if (rockfallLayer.getBounds && rockfallLayer.getBounds().isValid()) {
-            window.map.fitBounds(rockfallLayer.getBounds());
-            // console.log('🗺️ Map fitted to rockfall layer bounds');
+    } catch (e) { /* ignore */ }
+}
+
+function addHazardToMap(geojson, hazardType = 'hazard') {
+    // Normalize hazardType to a consistent token (accept 'debris-flow' or 'debris_flow')
+    if (typeof hazardType === 'string') hazardType = hazardType.replace(/-/g, '_');
+    console.log(`🪨 addHazardToMap called (normalized type=${hazardType})`);
+    if (!geojson || !geojson.type) {
+        console.error('❌ Invalid GeoJSON passed to addHazardToMap');
+        return;
+    }
+
+    // Debug: log a sample feature to help troubleshooting uploads
+    try {
+        const sample = Array.isArray(geojson.features) && geojson.features.length > 0 ? geojson.features[0] : null;
+        if (sample && sample.geometry && Array.isArray(sample.geometry.coordinates)) {
+            console.log('📐 Sample feature geometry type:', sample.geometry.type);
+            const coords = (Array.isArray(sample.geometry.coordinates[0]) ? sample.geometry.coordinates[0] : sample.geometry.coordinates);
+            if (Array.isArray(coords) && coords.length >= 2) console.log('📍 Sample coordinate (first):', coords[0], coords[1]);
         }
-    } else {
-        console.error('❌ Map not available');
-        // alert('Map not initialized. Please try again.');
-    }
-}
+        // Debug: log first few properties to inspect which fields are present (helps diagnose invisible styling)
+        if (Array.isArray(geojson.features) && geojson.features.length > 0) {
+            try {
+                const propsPreview = geojson.features.slice(0, 5).map(f => f.properties || {});
+                console.log('🧾 First features properties preview:', propsPreview);
+            } catch (e) { /* ignore */ }
+        }
+    } catch (e) { /* ignore debug errors */ }
 
-function removeRockfallLayer() {
-    // console.log('🪨 Removing rockfall layer...');
-    
-    if (rockfallLayer && window.map) {
-        window.map.removeLayer(rockfallLayer);
-        rockfallLayer = null;
-        // console.log('✅ Rockfall layer removed');
-        // alert('Rockfall layer removed.');
-    } else {
-        // console.log('⚠️ No rockfall layer to remove');
-        // alert('No rockfall layer currently active.');
+    // Remove any existing hazard layer first
+    if (window.hazardLayer && window.map) {
+        try { window.map.removeLayer(window.hazardLayer); } catch(e) { /* ignore */ }
+        try { if (window.ctlLayers) window.ctlLayers.removeLayer(window.hazardLayer); } catch(e) { /* ignore */ }
+        window.hazardLayer = null;
     }
-}
 
-// ==================== DEBRIS FLOW LAYER FUNCTIONALITY ====================
+    // Create layer with per-hazard styling and popups
+    // Helper to build popup content dynamically from feature properties
+    function buildPopupContent(props = {}, feature) {
+        try {
+            const lines = [];
+            const title = (hazardType === 'rockfall') ? '🪨 Chute de pierres / Rockfall' : (hazardType === 'debris_flow') ? '🌊 Debris flow' : '🪨 Hazard';
 
-// Global variable to store debris flow layer
-let debrisFlowLayer = null;
-
-function addDebrisFlowLayer() {
-    console.log('🌊 Adding debris flow layer...');
-    
-    // Check if debris_flow_hazards is available
-    if (typeof debris_flow_hazards === 'undefined') {
-        console.error('❌ debris_flow_hazards data not available');
-        return;
-    }
-    
-    // Check if swissToWGS84 function is available
-    if (typeof swissToWGS84 !== 'function') {
-        console.error('❌ swissToWGS84 transformation function not available');
-        return;
-    }
-    
-    // Filter for debris flow features only
-    const debrisFlowFeatures = debris_flow_hazards.features.filter(feature => 
-        feature.properties.subproc_sy === 'debris_flow'
-    );
-    
-    console.log(`📊 Found ${debrisFlowFeatures.length} debris flow features`);
-    
-    if (debrisFlowFeatures.length === 0) {
-        console.warn('⚠️ No debris flow features found');
-        return;
-    }
-    
-    // Transform coordinates using existing swissToWGS84 function
-    const transformedFeatures = debrisFlowFeatures.map(feature => {
-        const newFeature = { ...feature };
-        
-        // Transform coordinates recursively
-        function transformCoordArray(coords) {
-            if (typeof coords[0] === 'number') {
-                // This is a coordinate pair [east, north]
-                const [east, north] = coords;
-                const wgs84 = swissToWGS84(east, north);
-                return [wgs84.lng, wgs84.lat]; // GeoJSON format: [lng, lat]
+            // Priority fields per hazard type (try to show most relevant info first)
+            const priority = [];
+            if (hazardType === 'rockfall') {
+                priority.push('classe_d_intensites','intensity_','intensity','subproc_sy','canton','commentaire','designation_cantonale_du_processus','evenement_extreme','proprietaire_des_donnees','t_id');
+            } else if (hazardType === 'debris_flow') {
+                priority.push('intensity_','intensity','return_per','subproc_sy','canton','comments','t_id');
             } else {
-                // This is an array of coordinate arrays, recurse
-                return coords.map(transformCoordArray);
+                priority.push('t_id','id','name','subproc_sy','canton');
             }
-        }
-        
-        newFeature.geometry = {
-            ...feature.geometry,
-            coordinates: transformCoordArray(feature.geometry.coordinates)
-        };
-        
-        return newFeature;
-    });
-    
-    console.log('🔄 Debris flow coordinates transformed using swissToWGS84 function');
-    
-    // Create GeoJSON object with transformed features
-    const debrisFlowGeoJSON = {
-        type: "FeatureCollection",
-        features: transformedFeatures
-    };
-    
-    // Remove existing layer if present
-    if (debrisFlowLayer && window.map) {
-        window.map.removeLayer(debrisFlowLayer);
-    }
-    
-    // Create and add the debris flow layer
-    if (window.map) {
-        debrisFlowLayer = L.geoJSON(debrisFlowGeoJSON, {
-            style: function(feature) {
-                // Style based on intensity - using blue tones for debris flow
-                const intensity = feature.properties.intensity_;
-                let color, fillOpacity;
-                
-                switch(intensity) {
-                    case 'high':
-                        color = '#c02015ff';      // Dark blue for high intensity
-                        fillOpacity = 0.8;
-                        break;
-                    case 'mean':
-                        color = '#e5d718ff';      // Medium blue for mean intensity  
-                        fillOpacity = 0.6;
-                        break;
-                    case 'low':
-                        color = '#2979ceff';      // Light blue for low intensity
-                        fillOpacity = 0.4;
-                        break;
-                    default:
-                        color = '#d9e5f0ff';      // Very light blue for undefined
-                        fillOpacity = 0.3;
+
+            const used = new Set();
+            // Add priority fields if present
+            for (const key of priority) {
+                if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== undefined && props[key] !== '') {
+                    lines.push(`<p><strong>${key.replace(/_/g,' ')}:</strong> ${String(props[key])}</p>`);
+                    used.add(key);
                 }
-                
-                return {
-                    color: color,
-                    weight: 1,
-                    opacity: 1,
-                    fillColor: color,
-                    fillOpacity: fillOpacity
-                };
-            },
-            onEachFeature: function(feature, layer) {
-                // Add popup with hazard information
-                const props = feature.properties;
-                const popupContent = `
-                    <div style="font-size: 12px;">
-                        <h4>🌊 Debris Flow Hazard</h4>
-                        <p><strong>Intensity:</strong> ${props.intensity_}</p>
-                        <p><strong>Return Period:</strong> ${props.return_per} years</p>
-                        <p><strong>Canton:</strong> ${props.canton}</p>
-                        <p><strong>Type:</strong> ${props.cantonal_t || 'N/A'}</p>
-                        <p><strong>Extreme Scenario:</strong> ${props.extreme_sc ? 'Yes' : 'No'}</p>
-                        ${props.comments ? `<p><strong>Comments:</strong> ${props.comments}</p>` : ''}
-                    </div>
-                `;
-                layer.bindPopup(popupContent);
             }
-        }).addTo(window.map);
-        
-        console.log('✅ Debris flow layer added successfully');
-        
-        // Fit map to show the layer
-        if (debrisFlowLayer.getBounds && debrisFlowLayer.getBounds().isValid()) {
-            window.map.fitBounds(debrisFlowLayer.getBounds());
-            console.log('🗺️ Map fitted to debris flow layer bounds');
+
+            // Add all remaining properties
+            Object.keys(props).forEach(k => {
+                if (used.has(k)) return;
+                const v = props[k];
+                if (v === null || v === undefined || v === '') return;
+                let displayVal;
+                if (typeof v === 'object') {
+                    try { displayVal = JSON.stringify(v); } catch(e) { displayVal = String(v); }
+                } else {
+                    displayVal = String(v);
+                }
+                // Truncate long values for readability
+                if (displayVal.length > 300) displayVal = displayVal.slice(0,300) + '…';
+                lines.push(`<p><strong>${k.replace(/_/g,' ')}:</strong> ${displayVal}</p>`);
+            });
+
+            // Add coordinates for point geometries
+            if (feature && feature.geometry && feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates)) {
+                const [lng, lat] = feature.geometry.coordinates;
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    lines.unshift(`<p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`);
+                }
+            }
+
+            const content = `
+                <div style="font-size:12px;">
+                    <h4>${title}</h4>
+                    ${lines.join('\n')}
+                </div>`;
+            return content;
+        } catch (err) {
+            return `<div style="font-size:12px;"><h4>🪨 Hazard</h4><p>Feature data available</p></div>`;
         }
+    }
+
+    const layer = L.geoJSON(geojson, {
+        style: function(feature) {
+            try {
+                const props = feature.properties || {};
+                if (hazardType === 'rockfall') {
+                    // Use classe_d_intensites for rockfall styling
+                    let intensityRaw = props.classe_d_intensites;
+                    if (typeof intensityRaw !== 'string') intensityRaw = '';
+                    const intensity = intensityRaw.trim().toLowerCase();
+                    let color, fillOpacity;
+                    switch(intensity) {
+                        case 'forte':
+                            color = '#d73027'; fillOpacity = 0.8; break;
+                        case 'moyenne':
+                            color = '#fcf11bff'; fillOpacity = 0.6; break;
+                        case 'faible':
+                            color = '#4575b4'; fillOpacity = 0.4; break;
+                        default:
+                            color = '#999999'; fillOpacity = 0.0; // hide/transparent
+                    }
+                    return { color: color, weight: 1, opacity: fillOpacity > 0 ? 1 : 0, fillColor: color, fillOpacity: fillOpacity };
+                } else if (hazardType === 'debris_flow') {
+                    // More robust symbology for debris flow:
+                    // 1) Try a set of likely property names for intensity / probability / return period
+                    // 2) Map known textual categories to colors
+                    // 3) If unknown, produce a deterministic color per feature so all features are visible
+                    function findIntensityValue(properties) {
+                        if (!properties) return null;
+                        const keysToTry = [
+                            'classe_d_intensites','intensity_','intensity','return_per','return_period','probabilite','probability','prob','epaisseur','niveau','level','category'
+                        ];
+                        for (const k of keysToTry) {
+                            if (properties.hasOwnProperty(k) && properties[k] !== null && properties[k] !== undefined && properties[k] !== '') {
+                                return { key: k, val: properties[k] };
+                            }
+                        }
+                        // fallback: try to find any property that looks like an intensity number or small string
+                        for (const k of Object.keys(properties)) {
+                            const v = properties[k];
+                            if (typeof v === 'number') return { key: k, val: v };
+                            if (typeof v === 'string' && v.length > 0 && v.length < 40 && /[a-zA-Z0-9]/.test(v)) return { key: k, val: v };
+                        }
+                        return null;
+                    }
+
+                    const found = findIntensityValue(props);
+                    let color = '#999999';
+                    let fillOpacity = 0.45;
+                    if (found) {
+                        let v = found.val;
+                        if (typeof v === 'number') {
+                            // numerical mapping (example thresholds) - adjust if you know exact ranges
+                            if (v >= 0.66) { color = '#d73027'; fillOpacity = 0.8; }
+                            else if (v >= 0.33) { color = '#fcf11bff'; fillOpacity = 0.6; }
+                            else { color = '#4575b4'; fillOpacity = 0.4; }
+                        } else {
+                            // string mapping
+                            const s = String(v).trim().toLowerCase();
+                            if (s.match(/forte|high|élevé|eleve|elev/)) { color = '#d73027'; fillOpacity = 0.8; }
+                            else if (s.match(/moyenne|mean|moyen|moderate/)) { color = '#fcf11bff'; fillOpacity = 0.6; }
+                            else if (s.match(/faible|low|faibl/)) { color = '#4575b4'; fillOpacity = 0.4; }
+                            else {
+                                // unknown string -> deterministic color by hashing string
+                                const str = s || (found.key + '::' + JSON.stringify(v));
+                                let h = 0;
+                                for (let i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
+                                const hue = Math.abs(h) % 360;
+                                color = `hsl(${hue},70%,45%)`;
+                                fillOpacity = 0.55;
+                            }
+                        }
+                    } else {
+                        // no useful property found: deterministic color per-feature based on properties content
+                        const str = JSON.stringify(props || {}) || Math.random().toString();
+                        let h = 0;
+                        for (let i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
+                        const hue = Math.abs(h) % 360;
+                        color = `hsl(${hue},65%,50%)`;
+                        fillOpacity = 0.5;
+                    }
+                    return { color: color, weight: 1, opacity: 1, fillColor: color, fillOpacity: fillOpacity };
+                }
+            } catch (e) {
+                // fallback
+            }
+            return { color: '#d95f02', weight: 1, opacity: 1, fillColor: '#fec44f', fillOpacity: 0.5 };
+        },
+        onEachFeature: function(feature, lyr) {
+            try {
+                const props = feature.properties || {};
+                const popupContent = buildPopupContent(props, feature);
+                lyr.bindPopup(popupContent);
+            } catch (e) {
+                try { lyr.bindPopup('<div style="font-size:12px;">Hazard feature</div>'); } catch(ignore) {}
+            }
+        }
+    });
+
+    // Add to map and make canonical
+    if (window.map) {
+        layer.addTo(window.map);
+        window.hazardLayer = layer;
+        // register overlay in layer control (create control if it doesn't exist)
+        try {
+            if (!window.ctlLayers && window.map) {
+                // create a basic layer control using existing baseLayers if available
+                window.ctlLayers = L.control.layers(window.baseLayers || {}, {}).addTo(window.map);
+            }
+            if (window.ctlLayers) {
+                removeOverlayByName('🪨 Hazard');
+                window.ctlLayers.addOverlay(window.hazardLayer, '🪨 Hazard');
+            }
+        } catch(e) {
+            console.warn('⚠️ Failed to register hazard overlay in layer control', e);
+        }
+
+        // try to fit bounds
+        try {
+            if (window.hazardLayer.getBounds && window.hazardLayer.getBounds().isValid()) {
+                window.map.fitBounds(window.hazardLayer.getBounds());
+            }
+        } catch(e) { /* ignore */ }
+
+        try {
+            if (window.hazardLayer.bringToFront) window.hazardLayer.bringToFront();
+            console.log('🌐 Hazard layer bounds:', window.hazardLayer.getBounds ? window.hazardLayer.getBounds() : null);
+        } catch(e) { /* ignore */ }
+
+        console.log('✅ Hazard layer added and registered as window.hazardLayer');
     } else {
-        console.error('❌ Map not available');
+        console.error('❌ Map not available when adding hazard');
     }
 }
 
-function removeDebrisFlowLayer() {
-    console.log('🌊 Removing debris flow layer...');
-    
-    if (debrisFlowLayer && window.map) {
-        window.map.removeLayer(debrisFlowLayer);
-        debrisFlowLayer = null;
-        console.log('✅ Debris flow layer removed');
-    } else {
-        console.log('⚠️ No debris flow layer to remove');
+function removeHazardFromMap() {
+    if (window.hazardLayer && window.map) {
+        try { window.map.removeLayer(window.hazardLayer); } catch(e) { /* ignore */ }
+        try { if (window.ctlLayers) window.ctlLayers.removeLayer(window.hazardLayer); } catch(e) { /* ignore */ }
+        window.hazardLayer = null;
+        console.log('🗑️ Hazard layer removed');
     }
 }
+
+// Debris flow wrappers removed — use fetchAndDisplayHazardLayer(...) and removeHazardFromMap() directly
 
 // ==================== HAZARDS ATTRIBUTES TABLE FUNCTIONALITY ====================
 
@@ -1803,7 +2658,6 @@ function initializeLayerControls() {
 
 // ==================== LEAFLET DRAW FUNCTIONALITY ====================
 // ==================== HAZARD API FETCH & DISPLAY ====================
-let hazardLayer = null;
 /**
  * Fetch hazard data from 3 API URLs (rockfall or debris flow) and display on map
  * @param {string} hazardType - 'rockfall' or 'debris-flow'
@@ -1814,28 +2668,61 @@ async function fetchAndDisplayHazardLayer(hazardType, bbox) {
         console.error('❌ Map not available');
         return;
     }
-    // Remove previous hazard layer
-    if (hazardLayer) {
-        window.map.removeLayer(hazardLayer);
-        hazardLayer = null;
-    }
+    // Remove previous hazard layer (use canonical remover)
+    removeHazardFromMap();
+
+    // If the data source selector is set to custom, prefer custom uploaded hazard
+    try {
+        const dataSourceSelect = document.getElementById('data-source-select');
+        const selectedSource = dataSourceSelect ? dataSourceSelect.value : null;
+        if (selectedSource === 'custom') {
+            console.log('ℹ️ Data source set to custom — trying to use uploaded hazard (window.hazardLayer)');
+            if (window.hazardLayer) {
+                try {
+                    // If the hazardLayer has GeoJSON, try to extract it
+                    let geo = null;
+                    if (typeof window.hazardLayer.toGeoJSON === 'function') {
+                        geo = window.hazardLayer.toGeoJSON();
+                    } else if (window.hazardLayer instanceof L.FeatureGroup && window.hazardLayer.getLayers) {
+                        const merged = { type: 'FeatureCollection', features: [] };
+                        window.hazardLayer.getLayers().forEach(l => {
+                            try { merged.features.push(l.toGeoJSON()); } catch(e) { /* ignore */ }
+                        });
+                        geo = merged;
+                    }
+                    if (geo && geo.features && geo.features.length > 0) {
+                        addHazardToMap(geo, hazardType === 'debris-flow' ? 'debris_flow' : hazardType);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Could not extract GeoJSON from window.hazardLayer, falling back to API', e);
+                }
+            }
+            // If we reach here there is no usable custom hazard — fall back to API
+        }
+    } catch (e) { console.warn('⚠️ Error checking data-source-select, falling back to API', e); }
+
+    // Normalize hazardType so callers can pass either 'debris-flow' or 'debris_flow'
+    let hazardToken = (typeof hazardType === 'string') ? hazardType.replace(/_/g, '-').toLowerCase() : String(hazardType);
+    console.log('🔍 fetchAndDisplayHazardLayer received hazardType:', hazardType, 'normalized to:', hazardToken);
+
     // Build API URLs
     const bboxStr = Array.isArray(bbox) ? bbox.join(',') : bbox;
     let urls;
-    if (hazardType === 'rockfall') {
+    if (hazardToken === 'rockfall') {
         urls = [
-            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_0_a_30_ans/items?f=json&limit=20&bbox=${bboxStr}`,
-            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_100_a_300_ans/items?f=json&limit=20&bbox=${bboxStr}`,
-            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_30_a_100_ans/items?f=json&limit=20&bbox=${bboxStr}`
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_0_a_30_ans/items?f=json&limit=1000&bbox=${bboxStr}`,
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_100_a_300_ans/items?f=json&limit=1000&bbox=${bboxStr}`,
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_chute_recurrence_de_30_a_100_ans/items?f=json&limit=1000&bbox=${bboxStr}`
         ];
-    } else if (hazardType === 'debris-flow') {
+    } else if (hazardToken === 'debris-flow') {
+        // Use the epaisseur_du_debordement_de_lave_torrentielle collection for debris-flow
+        // Match the URL format you indicated (offset & limit parameters)
         urls = [
-            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_debrisflow_recurrence_de_0_a_30_ans/items?f=json&limit=20&bbox=${bboxStr}`,
-            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_debrisflow_recurrence_de_100_a_300_ans/items?f=json&limit=20&bbox=${bboxStr}`,
-            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/intensite_debrisflow_recurrence_de_30_a_100_ans/items?f=json&limit=20&bbox=${bboxStr}`
+            `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/epaisseur_du_debordement_de_lave_torrentielle/items?f=json&offset=0&limit=20&bbox=${bboxStr}`
         ];
     } else {
-        console.warn('⚠️ Unknown hazard type for API fetch:', hazardType);
+        console.warn('⚠️ Unknown hazard type for API fetch:', hazardType, 'normalized:', hazardToken);
         return;
     }
     console.log('🔎 Hazard API debug info:');
@@ -1868,62 +2755,17 @@ async function fetchAndDisplayHazardLayer(hazardType, bbox) {
                 let raw = f.properties.classe_d_intensites;
                 if (typeof raw !== 'string') raw = '';
                 const norm = raw.trim().toLowerCase();
-                console.log('Rockfall feature intensity:', raw, '->', norm);
+                // console.log('Rockfall feature intensity:', raw, '->', norm);
             });
         }
         const combinedGeoJSON = {
             type: "FeatureCollection",
             features: allFeatures
         };
-        hazardLayer = L.geoJSON(combinedGeoJSON, {
-            style: function(feature) {
-                // Use classe_d_intensites for rockfall styling
-                let intensityRaw = feature.properties && feature.properties.classe_d_intensites;
-                if (typeof intensityRaw !== 'string') intensityRaw = '';
-                const intensity = intensityRaw.trim().toLowerCase();
-                let color, fillOpacity;
-                switch(intensity) {
-                    case 'forte':
-                        color = '#d73027';
-                        fillOpacity = 0.8;
-                        break;
-                    case 'moyenne':
-                        color = '#fcf11bff';
-                        fillOpacity = 0.6;
-                        break;
-                    case 'faible':
-                        color = '#4575b4';
-                        fillOpacity = 0.4;
-                        break;
-                    default:
-                        // Hide features like 'aucune_atteinte' by making them transparent
-                        color = '#ffffff';
-                        fillOpacity = 0.0;
-                }
-                return {
-                    color: color,
-                    weight: 1,
-                    opacity: fillOpacity > 0 ? 1 : 0,
-                    fillColor: color,
-                    fillOpacity: fillOpacity
-                };
-            },
-            onEachFeature: function (feature, layer) {
-                let popupContent = '';
-                if (feature.properties) {
-                    popupContent = Object.entries(feature.properties)
-                        .map(([key, value]) => `<b>${key}:</b> ${value}`)
-                        .join('<br>');
-                }
-                layer.bindPopup(popupContent);
-            }
-        }).addTo(window.map);
-        // Zoom to bounds
-        try {
-            window.map.fitBounds(hazardLayer.getBounds());
-        } catch (e) {
-            // fallback to default view
-        }
+    // Delegate to unified adder so styling/overlay registration is consistent
+    // Convert normalized token back to the form expected by addHazardToMap (debris_flow)
+    const addType = (hazardToken === 'debris-flow') ? 'debris_flow' : hazardToken;
+    addHazardToMap(combinedGeoJSON, addType);
         console.log(`✅ Hazard layer (${hazardType}) added with ${allFeatures.length} features.`);
     } catch (error) {
         console.error('Error fetching combined GeoJSON:', error);
@@ -2015,24 +2857,24 @@ function initializeDrawFunctionality() {
                 }
             }
 
-            // Trigger buildings data load from Supabase
-            if (typeof window.loadBuildingsFromSupabase === 'function') {
-                console.log('🏢 Triggering loadBuildingsFromSupabase after polygon draw');
-                window.loadBuildingsFromSupabase();
-            } else {
-                console.warn('⚠️ window.loadBuildingsFromSupabase not available');
+            // Instead of fetching new data, use existing buildings and hazard layers for spatial analysis
+            console.log('� Preparing for spatial analysis with existing layers...');
+            
+            // Check if we have the required data for analysis
+            if (!window.buildingsData) {
+                console.warn('⚠️ No buildings data available. Please ensure buildings are loaded on the map.');
+                return;
             }
-
-            // Fetch and display hazard layer for selected hazard
-            let hazardType = (typeof window.selectedHazard === 'string' && window.selectedHazard) ? window.selectedHazard : 'rockfall';
-            console.log('🔍 window.selectedHazard value:', typeof window.selectedHazard, window.selectedHazard);
-            if (hazardType && bounds) {
-                const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
-                console.log('🌋 Fetching hazard layer for:', hazardType, bbox);
-                await fetchAndDisplayHazardLayer(hazardType, bbox);
-            } else {
-                console.warn('⚠️ No hazard selected or bounds missing, skipping hazard fetch.');
+            
+            if (!window.hazardLayer) {
+                console.warn('⚠️ No hazard layer available. Please ensure a hazard is selected and displayed.');
+                return;
             }
+            
+            console.log('✅ Required data available for spatial analysis:');
+            console.log('  - Buildings data:', window.buildingsData ? 'Available' : 'Missing');
+            console.log('  - Hazard layer:', window.hazardLayer ? 'Available' : 'Missing');
+            console.log('  - Selected hazard:', window.selectedHazard || 'None');
         }
     });
 
@@ -2192,6 +3034,33 @@ function zoomToAdministrativeArea(type, name) {
             });
             
             console.log(`✅ Zoomed to ${type}: ${name} (${matchingFeatures.length} features)`);
+            try {
+                // Also set window.currentBBox in Swiss LV95 for Supabase queries (same as polygon flow)
+                    if (bounds && bounds.isValid()) {
+                        const sw = bounds.getSouthWest();
+                        const ne = bounds.getNorthEast();
+                        // Set currentBBox for compatibility but do NOT auto-load buildings here
+                        if (typeof window.WGS84ToSwiss === 'function') {
+                            const minSwiss = window.WGS84ToSwiss(sw.lng, sw.lat);
+                            const maxSwiss = window.WGS84ToSwiss(ne.lng, ne.lat);
+                            window.currentBBox = [minSwiss.east, minSwiss.north, maxSwiss.east, maxSwiss.north];
+                        } else {
+                            window.currentBBox = [sw.lng, sw.lat, ne.lng, ne.lat];
+                        }
+                        console.log('📦 Set window.currentBBox (from selection) for Supabase:', window.currentBBox);
+
+                        // Instead of loading buildings for the whole canton (which can be large),
+                        // fetch and display hazard layers for the selected hazard type within the canton bbox.
+                        try {
+                            let hazardType = (typeof window.selectedHazard === 'string' && window.selectedHazard) ? window.selectedHazard : 'rockfall';
+                            const bboxWGS84 = [sw.lng, sw.lat, ne.lng, ne.lat];
+                            console.log('🌋 Fetching hazard layer for selection:', hazardType, bboxWGS84);
+                            fetchAndDisplayHazardLayer(hazardType, bboxWGS84);
+                        } catch (err) {
+                            console.warn('⚠️ Could not fetch hazards for selection', err);
+                        }
+                    }
+            } catch (err) { console.warn('⚠️ Could not set currentBBox from selection', err); }
         } else {
             console.warn(`⚠️ No matching features found for ${type}: ${name}`);
             
@@ -2291,83 +3160,94 @@ function createSelectionHighlight(features, type, name) {
             // Get bounding box coordinates
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
-            // Format bbox: minx,miny,maxx,maxy (WGS84)
-            const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
-            console.log('Fetching hazard data for bbox:', bbox);
-            fetchHazardDataFromSuisseAPI(bbox);
+            const bboxArr = [sw.lng, sw.lat, ne.lng, ne.lat];
+            // Use unified fetch which accepts hazard tokens like 'rockfall' or 'debris-flow'
+            try {
+                const hazardType = (typeof window.selectedHazard === 'string' && window.selectedHazard) ? window.selectedHazard : 'rockfall';
+                console.log('Fetching hazard layer for selected administrative area:', hazardType, bboxArr);
+                // Ensure fetchAndDisplayHazardLayer is available
+                if (typeof fetchAndDisplayHazardLayer === 'function') {
+                    fetchAndDisplayHazardLayer(hazardType, bboxArr);
+                } else {
+                    console.warn('⚠️ fetchAndDisplayHazardLayer not available, skipping hazard fetch for selection');
+                }
+            } catch (err) { console.warn('⚠️ Error fetching hazards for selection', err); }
         }
     }
     
-// Fetch hazard maps from Suisse API for a bounding box
-function fetchHazardDataFromSuisseAPI(bbox) {
-    // Example endpoint for Suisse API OGC Features
-    // You may need to adjust the collection name and query params for your use case
-    const endpoint = `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/gefahrenkarten/items?bbox=${bbox}&f=json`;
-    console.log('API request:', endpoint);
-    fetch(endpoint)
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            return response.json();
-        })
-        .then(data => {
-            console.log('Hazard data received:', data);
-            // TODO: Add logic to display hazard data on the map
-            // For example, add as a GeoJSON layer:
-            if (window.map && data && data.features) {
-                // Remove previous API hazard layer if present
-                if (window.suisseHazardLayer) {
-                    window.map.removeLayer(window.suisseHazardLayer);
-                }
-                window.suisseHazardLayer = L.geoJSON(data, {
-                    style: function(feature) {
-                        return {
-                            color: '#d73027',
-                            weight: 2,
-                            opacity: 0.8,
-                            fillColor: '#fcf11bff',
-                            fillOpacity: 0.3
-                        };
-                    },
-                    onEachFeature: function(feature, layer) {
-                        const props = feature.properties || {};
-                        const popupContent = `
-                            <div style="font-size:12px;">
-                                <h4>Hazard Map</h4>
-                                <p><strong>Type:</strong> ${props.gefahrentyp || 'N/A'}</p>
-                                <p><strong>Intensity:</strong> ${props.gefahrenintensitaet || 'N/A'}</p>
-                                <p><strong>Commune:</strong> ${props.gemeindename || 'N/A'}</p>
-                                <p><strong>Canton:</strong> ${props.kanton || 'N/A'}</p>
-                            </div>
-                        `;
-                        layer.bindPopup(popupContent);
+    // Fetch hazard maps from Suisse API for a bounding box
+    function fetchHazardDataFromSuisseAPI(bbox) {
+        // Example endpoint for Suisse API OGC Features
+        // You may need to adjust the collection name and query params for your use case
+        const endpoint = `https://www.geodienste.ch/db/gefahrenkarten_v1_3_0/fra/ogcapi/collections/gefahrenkarten/items?bbox=${bbox}&f=json`;
+        console.log('API request:', endpoint);
+        fetch(endpoint)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                console.log('Hazard data received:', data);
+                // TODO: Add logic to display hazard data on the map
+                // For example, add as a GeoJSON layer:
+                if (window.map && data && data.features) {
+                    // Remove previous API hazard layer if present
+                    if (window.suisseHazardLayer) {
+                        window.map.removeLayer(window.suisseHazardLayer);
                     }
-                }).addTo(window.map);
-                // Fit map to new hazard layer
-                if (window.suisseHazardLayer.getBounds && window.suisseHazardLayer.getBounds().isValid()) {
-                    window.map.fitBounds(window.suisseHazardLayer.getBounds().pad(0.1));
+                    window.suisseHazardLayer = L.geoJSON(data, {
+                        style: function(feature) {
+                            return {
+                                color: '#d73027',
+                                weight: 2,
+                                opacity: 0.8,
+                                fillColor: '#fcf11bff',
+                                fillOpacity: 0.3
+                            };
+                        },
+                        onEachFeature: function(feature, layer) {
+                            const props = feature.properties || {};
+                            const popupContent = `
+                                <div style="font-size:12px;">
+                                    <h4>Hazard Map</h4>
+                                    <p><strong>Type:</strong> ${props.gefahrentyp || 'N/A'}</p>
+                                    <p><strong>Intensity:</strong> ${props.gefahrenintensitaet || 'N/A'}</p>
+                                    <p><strong>Commune:</strong> ${props.gemeindename || 'N/A'}</p>
+                                    <p><strong>Canton:</strong> ${props.kanton || 'N/A'}</p>
+                                </div>
+                            `;
+                            layer.bindPopup(popupContent);
+                        }
+                    }).addTo(window.map);
+                    // Fit map to new hazard layer
+                    if (window.suisseHazardLayer.getBounds && window.suisseHazardLayer.getBounds().isValid()) {
+                        window.map.fitBounds(window.suisseHazardLayer.getBounds().pad(0.1));
+                    }
+                    console.log('✅ Suisse hazard layer added to map');
                 }
-                console.log('✅ Suisse hazard layer added to map');
-            }
-        })
-        .catch(error => {
-            console.error('❌ Error fetching hazard data from Suisse API:', error);
-            alert('Could not fetch hazard data for this area.');
-        });
-}
+            })
+            .catch(error => {
+                console.error('❌ Error fetching hazard data from Suisse API:', error);
+                alert('Could not fetch hazard data for this area.');
+            });
+    }
     
     // Add to layer control for toggle functionality
+    // Prepare a layer name and register it in the layer control
+    let layerName = `🎯 Selected ${type.charAt(0).toUpperCase() + type.slice(1)}: ${name}`;
     if (window.ctlLayers) {
-        const layerName = `🎯 Selected ${type.charAt(0).toUpperCase() + type.slice(1)}: ${name}`;
-        
         // Debug: Check if layer control exists and log current state
         console.log(`📋 Adding '${layerName}' to layer control`);
         console.log(`📋 Current layer control exists:`, !!window.ctlLayers);
         console.log(`📋 Current layer being added:`, currentSelectionLayer);
-        
-        window.ctlLayers.addOverlay(currentSelectionLayer, layerName);
-        console.log(`📋 Successfully added '${layerName}' to layer control`);
+        try {
+            window.ctlLayers.addOverlay(currentSelectionLayer, layerName);
+            console.log(`📋 Successfully added '${layerName}' to layer control`);
+        } catch (err) {
+            console.warn('⚠️ Failed to add selection overlay to layer control', err);
+        }
     }
-    
+
     // Store reference to the selection for later removal
     window.currentAdministrativeSelection = {
         type: type,

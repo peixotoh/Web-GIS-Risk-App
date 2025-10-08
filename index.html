@@ -33,28 +33,41 @@
     
     <script src="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.js"></script>
 
+    <!-- Turf.js for spatial analysis -->
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
     <!-- Charts and Data Grid -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+    <!-- Turf.js for spatial analysis -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
     <!-- Data Files -->
     <script src="data/json/suisse_admin_lim.js"></script>
+    <script src="data/json/buildings_info.js"></script>
     <script src="data/json/ti_buildings.js"></script>
     <script src="data/json/debris_flow_hazards.js"></script>
     <script src="data/json/rockfall_hazards.js"></script>
     <script src="data/json/flooding_hazards.js"></script>
     
     <!-- Custom Functions -->
+    <script src="src/js/globals.js"></script>
     <script src="src/js/functions_2.js"></script>
     <script src="src/js/map-init.js"></script>
     <script src="src/js/supabase-buildings.js"></script>
-    <script src="src/js/app.js"></script>
+    <script src="src/js/spatial-analysis.js"></script>
+    <script src="src/js/app.js"></script>   
+    <script src="src/js/vulnerability.js"></script>
+
 
     <!-- Custom Styles -->
     <link rel="stylesheet" href="src/css/main-styles.css">
+    
 </head>
 <body>
     <div class="container-fluid">
@@ -143,7 +156,7 @@
                                     <label for="custom-building-upload">Upload building Data</label>
                                     <div class="custom-file">
                                         <input type="file" class="custom-file-input" id="custom-building-upload" accept=".geojson,.json" disabled>
-                                        <label class="custom-file-label" for="custom-building-upload">building</label>
+                                        <label class="custom-file-label" for="custom-building-upload">Choose file...</label>
                                     </div>
 
                                     <small class="form-text text-muted">
@@ -199,7 +212,10 @@
                                     </label>
                                 </label>
                             </div>
-                            
+                            <button id="show-buildings-info-btn" type="button" class="btn btn-info btn-block" style="margin-top:8px;">
+                                <img src="src/images/buildings.svg" alt="Layers" style="width: 16px; height: 16px; margin-right: 8px;">
+                                Show Buildings Info
+                            </button>
                             <small class="form-text text-muted">
                                 Show/hide building layer on the map
                             </small>
@@ -218,7 +234,6 @@
                                 <img src="src/images/graph-up.svg" alt="Graph" style="width: 16px; height: 16px; margin-right: 8px;">
                                 Show Curves
                             </button>
-                            
                             <small class="form-text text-muted">
                                 Display vulnerability curves and parameters
                             </small>
@@ -265,7 +280,212 @@
     </div>
 
     <!-- Loading Spinner -->
-    <div id="spinner" class="spinner" style="display: none;"></div>
+        <div id="spinner" class="spinner" style="display: none;"></div>
+
+        <!-- Vulnerability Curves Modal -->
+        <!-- Buildings Info Modal -->
+    <div id="buildings-info-modal" class="vuln-modal modal-overlay">
+            <div class="vuln-modal-content modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Buildings Parameters</h3>
+                    <button id="close-buildings-info-modal" class="btn btn-danger">Close</button>
+                </div>
+                <hr class="modal-separator">
+                <div class="modal-body">
+                    <div class="fixed-table-header">
+                        <div class="header-col header-type">Type of Building</div>
+                        <div class="header-col header-unit">Unit</div>
+                        <div class="header-col header-value">Value</div>
+                    </div>
+                    <div class="modal-table-scroll">
+                        <table id="buildings-info-table" class="table table-bordered table-sm fixed-table" style="table-layout:fixed; width:100%;">
+                            <colgroup>
+                                <col class="col-type">
+                                <col class="col-unit">
+                                <col class="col-value">
+                            </colgroup>
+                            <tbody>
+                                <!-- Rows will be populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <small class="form-text text-muted modal-note">Change the value for each building type as needed. Changes will be used in later operations.</small>
+            </div>
+        </div>
+        <div id="rockfall-vuln-modal" class="vuln-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:9999;">
+            <div class="vuln-modal-content">
+                <div class="vuln-modal-header">
+                    <h3 style="margin:0;">Rockfall Hazards Vulnerability Curves</h3>
+                    <button id="close-rockfall-vuln-modal" class="btn btn-danger">Close</button>
+                </div>
+                <!-- Building Class Selection -->
+                <div style="margin:16px 0 8px 0;">
+                    <label for="rockfall-building-class-select" style="font-weight:600;">Choose building class:</label>
+                    <select id="rockfall-building-class-select" class="form-control mb-2" style="max-width:200px; display:inline-block;">
+                        <option value="class1">Class 1</option>
+                        <option value="class2">Class 2</option>
+                        <option value="class3">Class 3</option>
+                        <option value="class4">Class 4</option>
+                    </select>
+                </div>
+                <hr>
+                <!-- Vulnerability Curves and triangular distribution parameters -->
+                <div style="display:flex; gap:32px;">
+                    <!-- Left: Building Types and Inputs (1/3) -->
+                    <div style="flex:1 1 33%; min-width:320px; max-width:400px;">
+                        <div id="rockfall-building-types">
+                            <!-- Class 1 Section -->
+                            <div class="vuln-section" id="class1-section" style="margin-bottom:24px; border:1px solid #eee; border-radius:6px; padding:12px;">
+                                <h5>Class 1</h5>
+                                <table style="width:100%; margin-bottom:12px;">
+                                    <thead>
+                                        <tr><th>Intensity</th><th>Vulnerability</th></tr>
+                                    </thead>
+                                    <tbody>
+                                            <tr><td><input type="number" class="form-control" id="class1-intensity-1" value="30"></td><td><input type="number" class="form-control" id="class1-vuln-1" value="0.01" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class1-intensity-2" value="300"></td><td><input type="number" class="form-control" id="class1-vuln-2" value="0.1" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class1-intensity-3" value="600"></td><td><input type="number" class="form-control" id="class1-vuln-3" value="0.6" step="0.1"></td></tr>
+                                                <tr><td><input type="number" class="form-control" id="class1-intensity-4"></td><td><input type="number" class="form-control" id="class1-vuln-4" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class1-intensity-5"></td><td><input type="number" class="form-control" id="class1-vuln-5" step="0.1"></td></tr>
+                                    </tbody>
+                                </table>
+                                <div style="margin-bottom:8px; font-weight:600;">Triangular Distribution Parameters</div>
+                                <table style="width:100%;">
+                                    <thead>
+                                        <tr><th></th><th>a</th><th>b</th><th>c</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Min</td><td><input type="number" class="form-control" id="class1-min-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class1-min-b" value="650" step="10"></td><td><input type="number" class="form-control" id="class1-min-c" value="0" step="10"></td></tr>
+                                        <tr><td>Mean</td><td><input type="number" class="form-control" id="class1-mean-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class1-mean-b" value="1000" step="10"></td><td><input type="number" class="form-control" id="class1-mean-c" value="300" step="10"></td></tr>
+                                        <tr><td>Max</td><td><input type="number" class="form-control" id="class1-max-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class1-max-b" value="1400" step="10"></td><td><input type="number" class="form-control" id="class1-max-c" value="800" step="10"></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Class 2 Section -->
+                            <div class="vuln-section" id="class2-section" style="margin-bottom:24px; border:1px solid #eee; border-radius:6px; padding:12px; display:none;">
+                                <h5>Class 2</h5>
+                                <table style="width:100%; margin-bottom:12px;">
+                                    <thead>
+                                        <tr><th>Intensity</th><th>Vulnerability</th></tr>
+                                    </thead>
+                                    <tbody>
+                                            <tr><td><input type="number" class="form-control" id="class2-intensity-1" value="30"></td><td><input type="number" class="form-control" id="class2-vuln-1" value="0.01" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class2-intensity-2" value="300"></td><td><input type="number" class="form-control" id="class2-vuln-2" value="0.3" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class2-intensity-3" value="600"></td><td><input type="number" class="form-control" id="class2-vuln-3" value="0.6" step="0.1"></td></tr>
+                                                <tr><td><input type="number" class="form-control" id="class2-intensity-4"></td><td><input type="number" class="form-control" id="class2-vuln-4" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class2-intensity-5"></td><td><input type="number" class="form-control" id="class2-vuln-5" step="0.1"></td></tr>
+                                    </tbody>
+                                </table>
+                                <div style="margin-bottom:8px; font-weight:600;">Triangular Distribution Parameters</div>
+                                <table style="width:100%;">
+                                    <thead>
+                                        <tr><th></th><th>a</th><th>b</th><th>c</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Min</td><td><input type="number" class="form-control" id="class2-min-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class2-min-b" value="850" step="10"></td><td><input type="number" class="form-control" id="class2-min-c" value="0" step="10"></td></tr>
+                                        <tr><td>Mean</td><td><input type="number" class="form-control" id="class2-mean-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class2-mean-b" value="1200" step="10"></td><td><input type="number" class="form-control" id="class2-mean-c" value="400" step="10"></td></tr>
+                                        <tr><td>Max</td><td><input type="number" class="form-control" id="class2-max-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class2-max-b" value="1600" step="10"></td><td><input type="number" class="form-control" id="class2-max-c" value="800" step="10"></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Class 3 Section -->
+                            <div class="vuln-section" id="class3-section" style="margin-bottom:24px; border:1px solid #eee; border-radius:6px; padding:12px; display:none;">
+                                <h5>Class 3</h5>
+                                <table style="width:100%; margin-bottom:12px;">
+                                    <thead>
+                                        <tr><th>Intensity</th><th>Vulnerability</th></tr>
+                                    </thead>
+                                    <tbody>
+                                            <tr><td><input type="number" class="form-control" id="class3-intensity-1" value="30"></td><td><input type="number" class="form-control" id="class3-vuln-1" value="0.01" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class3-intensity-2" value="300"></td><td><input type="number" class="form-control" id="class3-vuln-2" value="0.8" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class3-intensity-3" value="600"></td><td><input type="number" class="form-control" id="class3-vuln-3" value="0.9" step="0.1"></td></tr>
+                                                <tr><td><input type="number" class="form-control" id="class3-intensity-4"></td><td><input type="number" class="form-control" id="class3-vuln-4" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class3-intensity-5"></td><td><input type="number" class="form-control" id="class3-vuln-5" step="0.1"></td></tr>
+                                    </tbody>
+                                </table>
+                                <div style="margin-bottom:8px; font-weight:600;">Triangular Distribution Parameters</div>
+                                <table style="width:100%;">
+                                    <thead>
+                                        <tr><th></th><th>a</th><th>b</th><th>c</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Min</td><td><input type="number" class="form-control" id="class3-min-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class3-min-b" value="1050" step="10"></td><td><input type="number" class="form-control" id="class3-min-c" value="0" step="10"></td></tr>
+                                        <tr><td>Mean</td><td><input type="number" class="form-control" id="class3-mean-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class3-mean-b" value="1400" step="10"></td><td><input type="number" class="form-control" id="class3-mean-c" value="600" step="10"></td></tr>
+                                        <tr><td>Max</td><td><input type="number" class="form-control" id="class3-max-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class3-max-b" value="1800" step="10"></td><td><input type="number" class="form-control" id="class3-max-c" value="1000" step="10"></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Class 4 Section -->
+                            <div class="vuln-section" id="class4-section" style="margin-bottom:24px; border:1px solid #eee; border-radius:6px; padding:12px; display:none;">
+                                <h5>Class 4</h5>
+                                <table style="width:100%; margin-bottom:12px;">
+                                    <thead>
+                                        <tr><th>Intensity</th><th>Vulnerability</th></tr>
+                                    </thead>
+                                    <tbody>
+                                            <tr><td><input type="number" class="form-control" id="class4-intensity-1" value="30"></td><td><input type="number" class="form-control" id="class4-vuln-1" value="0.5" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class4-intensity-2" value="300"></td><td><input type="number" class="form-control" id="class4-vuln-2" value="1" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class4-intensity-3" value="600"></td><td><input type="number" class="form-control" id="class4-vuln-3" value="1" step="0.1"></td></tr>
+                                                <tr><td><input type="number" class="form-control" id="class4-intensity-4"></td><td><input type="number" class="form-control" id="class4-vuln-4" step="0.1"></td></tr>
+                                            <tr><td><input type="number" class="form-control" id="class4-intensity-5"></td><td><input type="number" class="form-control" id="class4-vuln-5" step="0.1"></td></tr>
+                                    </tbody>
+                                </table>
+                                <div style="margin-bottom:8px; font-weight:600;">Triangular Distribution Parameters</div>
+                                <table style="width:100%;">
+                                    <thead>
+                                        <tr><th></th><th>a</th><th>b</th><th>c</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Min</td><td><input type="number" class="form-control" id="class4-min-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class4-min-b" value="1250" step="10"></td><td><input type="number" class="form-control" id="class4-min-c" value="0" step="10"></td></tr>
+                                        <tr><td>Mean</td><td><input type="number" class="form-control" id="class4-mean-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class4-mean-b" value="1600" step="10"></td><td><input type="number" class="form-control" id="class4-mean-c" value="800" step="10"></td></tr>
+                                        <tr><td>Max</td><td><input type="number" class="form-control" id="class4-max-a" value="0.1" step="10"></td><td><input type="number" class="form-control" id="class4-max-b" value="2000" step="10"></td><td><input type="number" class="form-control" id="class4-max-c" value="1200" step="10"></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right: Plotly Graph -->
+                    <div style="flex:2 1 67%; min-width:480px;">
+                        <div id="rockfall-vuln-plot" style="width:100%; height:600px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Analysis Results Modal -->
+    <div id="analysis-results-modal" class="vuln-modal modal-overlay">
+        <div class="vuln-modal-content modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">📊 Spatial Analysis Results</h3>
+                <button id="close-analysis-results-modal" class="btn btn-danger">Close</button>
+            </div>
+            <hr class="modal-separator">
+            <div class="modal-body">
+                <!-- Summary Statistics -->
+                <div id="analysis-summary" style="margin-bottom:20px;">
+                    <h4>📈 Summary Statistics</h4>
+                    <div id="analysis-summary-content" style="background:#f8f9fa; padding:15px; border-radius:6px; margin-bottom:20px;">
+                        <!-- Summary content will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Buildings Analyzed Table -->
+                <div id="analysis-table-section">
+                    <h4>🏢 Buildings Analyzed (with Hazard Data)</h4>
+                    <div id="analysis-ag-grid" class="ag-theme-alpine" style="height: 400px; width: 100%; border:1px solid #ddd; border-radius:6px;">
+                        <!-- AG Grid table will be rendered here -->
+                    </div>
+                </div>
+                
+                <!-- Placeholder for future analysis content -->
+                <div id="future-analysis-content" style="margin-top:20px;">
+                    <!-- Future analysis features will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
 
 </body>
+
 </html>

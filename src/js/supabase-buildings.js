@@ -11,7 +11,24 @@ const SUPABASE_CONFIG = {
 };
 
 // Initialize Supabase client
-let supabase;
+// ------------------ Global variables (initialized at file top) ------------------
+// Keep globals together for easier discovery and to avoid accidental overwrites
+// globals (this module)
+// window.buildingsLayer   - L.layerGroup for buildings added to map
+// window.buildingsData    - Array of building records retrieved from Supabase
+// window.supabaseClient   - optional client reference
+//
+// exported functions (quick reference)
+// loadBuildingsFromSupabase(), removeBuildingsFromMap(), showAttributesTable()
+
+if (typeof window.supabaseClient === 'undefined') window.supabaseClient = null; // alternate name if used elsewhere
+let supabase; // local reference to client
+// Supabase fetch configuration
+// PostgREST (Supabase REST) defaults to 1000 rows when no explicit range/limit is provided.
+// To avoid silently returning only 1000 rows when a bbox covers a large area, request an
+// explicit range here. Beware: requesting very large numbers may harm browser performance.
+const SUPABASE_MAX_RESULTS = 5000; // adjust as needed (default 5000)
+// ---------------------------------------------------------------------------------
 
 // Try immediate setup if document is already ready
 if (document.readyState === 'loading') {
@@ -127,12 +144,17 @@ function handleRemoveButtonClick(e) {
 
 // Function to remove buildings from map
 function removeBuildingsFromMap() {
-    if (buildingsLayer && window.map) {
-        window.map.removeLayer(buildingsLayer);
-        buildingsLayer = null;
+    if (window.buildingsLayer && window.map) {
+        try { window.map.removeLayer(window.buildingsLayer); } catch (e) { /* ignore */ }
+        // Also remove from layer control overlays if present
+        try {
+            if (window.ctlLayers) {
+                try { window.ctlLayers.removeLayer(window.buildingsLayer); } catch (e) { /* ignore */ }
+            }
+        } catch(e) { /* ignore */ }
         window.buildingsLayer = null;
+        window.buildingsData = null;
         // console.log('✅ Buildings layer removed from map');
-        
         // Close attributes table if open
         closeAttributesTable();
     } else {
@@ -165,9 +187,9 @@ function handleAttributesButtonClick(e) {
     showAttributesTable();
 }
 
-// Global variable to store the buildings layer
-let buildingsLayer = null;
-let buildingsData = null; // Store the data for attributes table
+// Use single window-level variables so all flows manipulate the same state
+if (typeof window.buildingsLayer === 'undefined') window.buildingsLayer = null;
+if (typeof window.buildingsData === 'undefined') window.buildingsData = null; // optional raw data for attributes
 
 // Efficient Swiss LV95 to WGS84 transformation (one-liner version)
 function swissToWGS84(east, north) {
@@ -201,48 +223,76 @@ async function loadBuildingsFromSupabase() {
     } else {
         console.log('🗺️ Map object found:', window.map);
     }
-    // Check bbox
+    // Check bbox cames from initializeDrawFunctionality function
     if (window.currentBBox && window.currentBBox.length === 4) {
         const [minEast, minNorth, maxEast, maxNorth] = window.currentBBox;
         console.log('🔍 Using bbox for Supabase query:', window.currentBBox);
         console.log(`🔢 Query GKODE >= ${minEast}, GKODE <= ${maxEast}, GKODN >= ${minNorth}, GKODN <= ${maxNorth}`);
-        let data, error;
-        try {
-            ({ data, error } = await supabase
-                .from('ti_buildings')
-                .select('EGID, GGDENAME, GDEKT, GKAT, GKLAS, GBAUJ, GAREA, GVOL, GKODE, GKODN')
-                .gte('GKODE', minEast)
-                .lte('GKODE', maxEast)
-                .gte('GKODN', minNorth)
-                .lte('GKODN', maxNorth)
-                .limit(400));
-        } catch (err) {
-            console.error('❌ Supabase query threw error:', err);
-            alert('Supabase query failed: ' + err);
-            return;
+        // Perform paged requests because some Supabase/PostgREST setups impose a per-request cap
+        // (commonly 1000 rows). We'll request in PAGE_SIZE chunks and concatenate results until
+        // there are no more rows or we've reached SUPABASE_MAX_RESULTS.
+        const PAGE_SIZE = Math.min(1000, SUPABASE_MAX_RESULTS); // per-request page size
+        let allData = [];
+        let offset = 0;
+        let shouldContinue = true;
+        while (shouldContinue && allData.length < SUPABASE_MAX_RESULTS) {
+            let dataPage, errorPage;
+            try {
+                const start = offset;
+                const end = offset + PAGE_SIZE - 1;
+                ({ data: dataPage, error: errorPage } = await supabase
+                    .from('ti_buildings')
+                    .select('EGID, GGDENAME, GDEKT, GBEZ, GKODE, GKODN, GSTAT, GKAT, GKLAS, GBAUJ, GBAUP, GAREA, GVOLNORM, GVOL, GVOLSCE, GASTW, GANZWHG, GEBF')
+                    .gte('GKODE', minEast)
+                    .lte('GKODE', maxEast)
+                    .gte('GKODN', minNorth)
+                    .lte('GKODN', maxNorth)
+                    .range(start, end));
+            } catch (err) {
+                console.error('❌ Supabase paged query threw error:', err);
+                alert('Supabase query failed: ' + err);
+                return;
+            }
+            if (errorPage) {
+                console.error('❌ Supabase error (paged):', errorPage);
+                alert('Supabase error: ' + errorPage.message);
+                return;
+            }
+            if (dataPage && dataPage.length > 0) {
+                allData = allData.concat(dataPage);
+                // If we received less than a full page, we've reached the end.
+                if (dataPage.length < PAGE_SIZE) {
+                    shouldContinue = false;
+                } else {
+                    offset += PAGE_SIZE; // fetch next page
+                }
+            } else {
+                // No more rows
+                shouldContinue = false;
+            }
         }
-        if (error) {
-            console.error('❌ Supabase error:', error);
-            alert('Supabase error: ' + error.message);
-            return;
-        }
-        if (data && data.length > 0) {
-            console.log(`✅ ${data.length} buildings loaded from bbox.`);
-            buildingsData = data;
-            addBuildingsToMap(data);
+
+        if (allData && allData.length > 0) {
+            console.log(`✅ ${allData.length} buildings loaded from bbox (paged).`);
+            if (allData.length >= SUPABASE_MAX_RESULTS) {
+                console.warn('⚠️ Returned buildings count equals or exceeds SUPABASE_MAX_RESULTS — results may be truncated. Consider using a smaller bbox or server-side paging.');
+            }
+            window.buildingsData = allData;
+            if (typeof window.addBuildingsToMap === 'function') window.addBuildingsToMap(allData);
         } else {
-            console.warn('⚠️ No buildings found in bbox. Data:', data);
+            console.warn('⚠️ No buildings found in bbox. Data:', allData);
             alert('No buildings found in selected area.');
         }
-        return data;
+    return allData;
     } else {
         console.log('🔍 No bbox set, loading all buildings (limit 400)');
         let data, error;
         try {
+            // Request an explicit range for the no-bbox case as well (safer than relying on .limit)
             ({ data, error } = await supabase
                 .from('ti_buildings')
-                .select('EGID, GGDENAME, GDEKT, GKAT, GKLAS, GBAUJ, GAREA, GVOL, GKODE, GKODN')
-                .limit(400));
+                .select('EGID, GGDENAME, GDEKT, GBEZ, GKODE, GKODN, GSTAT, GKAT, GKLAS, GBAUJ, GBAUP, GAREA, GVOLNORM, GVOL, GVOLSCE, GASTW, GANZWHG, GEBF')
+                .range(0, Math.min(SUPABASE_MAX_RESULTS, 400) - 1));
         } catch (err) {
             console.error('❌ Supabase query threw error:', err);
             alert('Supabase query failed: ' + err);
@@ -255,8 +305,8 @@ async function loadBuildingsFromSupabase() {
         }
         if (data && data.length > 0) {
             console.log(`✅ ${data.length} buildings loaded (no bbox).`);
-            buildingsData = data;
-            addBuildingsToMap(data);
+            window.buildingsData = data;
+            if (typeof window.addBuildingsToMap === 'function') window.addBuildingsToMap(data);
         } else {
             console.warn('⚠️ No data returned - this might be a permissions/RLS issue. Data:', data);
             alert('No buildings data returned. Check Supabase permissions.');
@@ -265,86 +315,6 @@ async function loadBuildingsFromSupabase() {
     }
 }
 
-// Function to add buildings to the map
-function addBuildingsToMap(buildingsData) {
-    console.log('🗺️ Adding buildings to map...');
-    // Check if map is available
-    if (!window.map) {
-        console.error('❌ Map not found! Make sure Leaflet map is initialized.');
-        alert('Map not found!');
-        return;
-    }
-    // Remove existing buildings layer if it exists
-    if (buildingsLayer) {
-        window.map.removeLayer(buildingsLayer);
-        console.log('🗑️ Removed existing buildings layer');
-    }
-    buildingsLayer = L.layerGroup();
-    let addedBuildings = 0;
-    const coordinates = [];
-    buildingsData.forEach((building, index) => {
-        try {
-            let lat, lng;
-            if (building.GKODE && building.GKODN) {
-                const wgs84 = swissToWGS84(building.GKODE, building.GKODN);
-                lat = wgs84.lat;
-                lng = wgs84.lng;
-                //console.log(`🔄 Building ${building.EGID}: Swiss [${building.GKODE}, ${building.GKODN}] → WGS84 [${lat}, ${lng}]`);
-            } else {
-                console.warn(`⚠️ Building ${building.EGID} missing Swiss coordinates GKODE/GKODN.`);
-            }
-            if (lat && lng && !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                const marker = L.circleMarker([lat, lng], {
-                    radius: 8,
-                    fillColor: '#e49321ff',
-                    color: '#0b0b0bff',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.7
-                });
-                const popupContent = `
-                    <div class="building-popup">
-                        <h6><strong>Building ${building.EGID}</strong></h6>
-                        <p><strong>Municipality:</strong> ${building.GGDENAME}</p>
-                        <p><strong>Canton:</strong> ${building.GDEKT}</p>
-                        <p><strong>Category:</strong> ${building.GKAT || 'Unknown'}</p>
-                        <p><strong>Class:</strong> ${building.GKLAS || 'Unknown'}</p>
-                        <p><strong>Construction Year:</strong> ${building.GBAUJ || 'Unknown'}</p>
-                        <p><strong>Area:</strong> ${building.GAREA ? building.GAREA + ' m²' : 'Unknown'}</p>
-                        <p><strong>Volume:</strong> ${building.GVOL ? building.GVOL + ' m³' : 'Unknown'}</p>
-                        <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-                    </div>
-                `;
-                marker.bindPopup(popupContent);
-                buildingsLayer.addLayer(marker);
-                coordinates.push([lat, lng]);
-                addedBuildings++;
-            } else {
-                console.warn(`⚠️ Building ${building.EGID} has invalid WGS84 coordinates: lat=${lat}, lng=${lng}`);
-            }
-        } catch (error) {
-            console.warn(`⚠️ Error processing building ${building.EGID}:`, error);
-        }
-    });
-    // Add the layer to the map
-    if (addedBuildings > 0) {
-        buildingsLayer.addTo(window.map);
-        console.log(`✅ Added ${addedBuildings} buildings to map`);
-        // Zoom to extent of all buildings
-        if (coordinates.length > 1) {
-            const group = new L.featureGroup(buildingsLayer.getLayers());
-            window.map.fitBounds(group.getBounds().pad(0.1));
-            console.log('🔍 Zoomed to buildings extent');
-        } else if (coordinates.length === 1) {
-            window.map.setView(coordinates[0], 15);
-            console.log('🔍 Centered on single building');
-        }
-        window.buildingsLayer = buildingsLayer;
-    } else {
-        console.warn('⚠️ No buildings could be mapped. Check coordinate transformation.');
-        alert('No buildings could be mapped. Check coordinate transformation.');
-    }
-}
 
 // Make functions globally available
 window.loadBuildingsFromSupabase = loadBuildingsFromSupabase;
@@ -357,7 +327,8 @@ window.showAttributesTable = showAttributesTable;
 function showAttributesTable() {
     // console.log('📊 Showing attributes table...');
     
-    if (!buildingsData || buildingsData.length === 0) {
+    var bdata = window.buildingsData || null;
+    if (!bdata || bdata.length === 0) {
         alert('⚠️ No buildings data available. Please load buildings first.');
         return;
     }
@@ -420,7 +391,8 @@ function createAttributesWindow() {
     `;
     
     const title = document.createElement('h4');
-    title.textContent = `🏢 Buildings Attributes (${buildingsData.length} records)`;
+    const recordCount = (window.buildingsData && window.buildingsData.length) ? window.buildingsData.length : 0;
+    title.textContent = `🏢 Buildings Attributes (${recordCount} records)`;
     title.style.cssText = `
         margin: 0;
         color: white;
@@ -512,7 +484,8 @@ function createAttributesWindow() {
     // Create table body
     const tbody = document.createElement('tbody');
     
-    buildingsData.forEach((building, index) => {
+    const rows = window.buildingsData || [];
+    rows.forEach((building, index) => {
         const row = document.createElement('tr');
         row.style.cssText = `
             transition: all 0.3s ease;

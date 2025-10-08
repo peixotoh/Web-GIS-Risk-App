@@ -26,33 +26,33 @@ function vuln(year){
     }
     if (year > 1950){
         return 0.3
-    }        
+    }
 }
 
 // --- function to calculate the building cost based on ty of building
-function builCost(cat, vul, houses){
-    if(cat == 1020){
+function builCost(categorie, volume, houses){
+    if(categorie == 1020){
         if(houses == null){
             return 650000
         } else{
             return 650000 * houses;
         }
     }
-    if(cat == 1080){
+    if(categorie == 1080){
         if(houses == null){
             return 600000
         } else{
             return 600000 * houses;
         }
     }
-    if(cat == 1030){
-        return vul * 765;
+    if(categorie == 1030){
+        return volume * 765;
     }
-    if(cat == 1040){
-        return vul * 550;
+    if(categorie == 1040){
+        return volume * 550;
     } 
-    if(cat == 1060){
-        return vul * 180;
+    if(categorie == 1060){
+        return volume * 180;
     }
 }
 

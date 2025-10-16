@@ -716,8 +716,11 @@ hr {
 }
 .modal-body {
     flex:1 1 auto;
-    overflow: visible; /* let inner .modal-table-scroll handle scrolling to avoid double scrollbars */
+    overflow-y: auto; /* Enable vertical scrolling */
+    overflow-x: hidden; /* Prevent horizontal overflow */
     padding-right:8px;
+    /* Add some padding to prevent content from touching edges */
+    padding-bottom: 20px;
 }
 .fixed-table-header {
     display:flex;
@@ -783,4 +786,26 @@ hr {
 /* Also ensure modal header sits under table header when both sticky */
 .modal-header {
     z-index: 50;
+}
+
+/* AG Grid table container in modals */
+#analysis-ag-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    /* Set a reasonable height that fits within modal */
+    height: 500px !important;
+    min-height: 300px !important;
+}
+
+/* Ensure AG Grid doesn't overflow horizontally */
+.ag-theme-alpine {
+    max-width: 100% !important;
+}
+
+/* Modal table section styling */
+#analysis-table-section {
+    margin-top: 20px;
+    width: 100%;
+    overflow: hidden;
 }

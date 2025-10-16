@@ -242,7 +242,27 @@ async function loadBuildingsFromSupabase() {
                 const end = offset + PAGE_SIZE - 1;
                 ({ data: dataPage, error: errorPage } = await supabase
                     .from('ti_buildings')
-                    .select('EGID, GGDENAME, GDEKT, GBEZ, GKODE, GKODN, GSTAT, GKAT, GKLAS, GBAUJ, GBAUP, GAREA, GVOLNORM, GVOL, GVOLSCE, GASTW, GANZWHG, GEBF')
+                    .select(`
+                        EGID,
+                        GDEKT,
+                        GGDENR,
+                        GGDENAME,
+                        EGRID,
+                        GEBNR,
+                        GBEZ,
+                        GKODE,
+                        GKODN,
+                        GKAT,
+                        GKLAS,
+                        GBAUJ,
+                        GBAUM,
+                        GBAUP,
+                        GAREA,
+                        GVOL,
+                        GASTW,
+                        GANZWHG,
+                        GEXPDAT
+                    `)
                     .gte('GKODE', minEast)
                     .lte('GKODE', maxEast)
                     .gte('GKODN', minNorth)

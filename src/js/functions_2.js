@@ -1,3 +1,16 @@
+// calculate the volume of a building
+function volumeBuilding(area, numberOfFloors){
+    if(area == null || numberOfFloors == null){
+        area = 50;
+        numberOfFloors = 3;
+    } 
+    const height = numberOfFloors * 2.7; // Assuming 2.7m per floor
+    const volume = area * height;
+    return volume;
+}
+
+
+
 // --- mean value of an array
 function meanValue(array){
     if(array.length == 0){
@@ -57,10 +70,10 @@ function builCost(categorie, volume, houses){
 }
 
 // ---- hazard probability in function of return period (valdorisk method)
-function hazardProb(subp, rp){
-    if(subp === 'rock_fall')
+function temporaHazardProbability(subp, rp){
+    if(subp === 'rock_fall' || subp === 'rockfall' || subp === 'rock-fall' || subp === 'rockFall'){
         if(rp === 30){
-            return (1/30)-(1/100)
+            return (1/30)-(1/100);
         }
         if(rp === 100){
             return (1/100)-(1/300);
@@ -68,8 +81,9 @@ function hazardProb(subp, rp){
         if(rp === 300){
             return 1/300;
         }
+    }
     
-    if(subp === 'debris_flow')
+    if(subp === 'debris_flow' || subp === 'debrisflow' || subp === 'debrisFlow' || subp === 'debris-flow'){
         if(rp === 10){
             return (1/10)-(1/30);
         }
@@ -86,8 +100,9 @@ function hazardProb(subp, rp){
         if(rp === 1000){
             return 1/1000;
         }
+    }
 
-    if(subp === 'flooding')
+    if(subp === 'flooding'){
         if(rp === 5){
             return (1/5)-(1/20);
         }
@@ -103,9 +118,8 @@ function hazardProb(subp, rp){
         if(rp === 300){
             return 1/300;
         }
-
-} 
-
+    }
+}
 
 // --- vulnerability function valdorisk - add also tyoe of building
 // - insert type of building
@@ -185,7 +199,7 @@ function vulnValdorisk(int, hazType, categ){
 
 // --- hazard probability function valdorisk
 function spatialHazardProbValdorisk(rp, hazType){
-    if(hazType == 'rock_fall'){
+    if(hazType == 'rock_fall' || hazType == 'rockfall' || hazType == 'rock-fall' || hazType == 'rockFall'){
         if(rp == 30){
             return 0.01;
         }
@@ -196,7 +210,7 @@ function spatialHazardProbValdorisk(rp, hazType){
             return 0.05;
         }
     }
-    if(hazType == 'debris_flow'){
+    if(hazType == 'debris_flow' || hazType == 'debrisflow' || hazType == 'debris-flow' || hazType == 'debrisFlow'){
         if(rp == 30){
             return 0.8;
         }
@@ -210,7 +224,7 @@ function spatialHazardProbValdorisk(rp, hazType){
             return 0.8;
         }
     }
-    if(hazType == 'flooding'){
+    if(hazType == 'flooding' || hazType == 'flood'){
         if(rp == 5){
             return 0.7;
         }
@@ -229,8 +243,7 @@ function spatialHazardProbValdorisk(rp, hazType){
         if(rp==1000){
             return 0.8;
         }
-    }
-    
+    }    
 }
 
 // --- vulnerability function based on Borter & Bart, 1999

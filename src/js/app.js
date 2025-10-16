@@ -1521,6 +1521,422 @@ function initializeWorkflow() {
                     runAnalysisBtn.disabled = false;
                     runAnalysisBtn.textContent = 'Run Analysis';
                 }
+
+                // Log buildings analysed data and use it perform the risk assessment.
+                console.table('Table data for risk assessment');
+                console.table(window.latestExtractionResults.buildingsAnalyzed || {}); 
+                
+                // Convert numeric fields to proper types for calculations
+                if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
+                    console.log('🔢 Converting numeric fields to proper types and calculating missing values...');
+                    
+                    // iteration through each building property
+                    window.latestExtractionResults.buildingsAnalyzed.forEach((building, index) => {
+                        const props = building.buildingProperties || {};
+                        const hazardProps = building.hazardProperties || {};
+                        
+                        // Create comprehensive variables for building properties
+                        let constructionYear = props.GBAUJ;
+                        let buildingArea = props.GAREA;
+                        let buildingVolume = props.GVOL;
+                        let numberOfFloors = props.GASTW !== "N/A" ? props.GASTW : 3;
+                        let numberOfApartments = props.GANZWHG !== "N/A" ? props.GANZWHG : 2;
+                        let buildingClass = props.GKLAS;
+                        let constructionPeriod = props.GBAUP;
+                        let coordinateE = props.GKODE;
+                        let coordinateN = props.GKODN;
+                        let communeNumber = props.GGDENR;
+                        let buildingNumber = props.GEBNR;
+                        let constructionMonth = props.GBAUM;
+
+                        // Convert string numbers to integers/floats for calculations
+                        if (constructionYear) props.GBAUJ = parseInt(constructionYear) || constructionYear;
+                        if (buildingArea) props.GAREA = parseFloat(buildingArea) || buildingArea;
+                        if (numberOfFloors) props.GASTW = parseInt(numberOfFloors) || numberOfFloors;
+                        if (numberOfApartments) props.GANZWHG = parseInt(numberOfApartments) || numberOfApartments;
+                        if (buildingClass) props.GKLAS = parseInt(buildingClass) || buildingClass;
+                        if (coordinateE) props.GKODE = parseFloat(coordinateE) || coordinateE;
+                        if (coordinateN) props.GKODN = parseFloat(coordinateN) || coordinateN;
+                        if (communeNumber) props.GGDENR = parseInt(communeNumber) || communeNumber;
+                        if (buildingNumber) props.GEBNR = parseInt(buildingNumber) || buildingNumber;
+                        if (constructionMonth) props.GBAUM = parseInt(constructionMonth) || constructionMonth;
+
+
+                        // ================================================================================================
+                        // ===========================   NEW FIELDS CALCULATION SECTION  ==================================
+                        // ================================================================================================                       
+                       
+
+                        // Handle building volume - convert if available, calculate if missing
+                        if (buildingVolume && buildingVolume !== "N/A" && !isNaN(parseFloat(buildingVolume))) {
+                            buildingVolume = parseFloat(buildingVolume);
+                        } else if (buildingArea && numberOfFloors && buildingArea > 0 && numberOfFloors > 0) {
+                            buildingVolume = volumeBuilding(buildingArea, numberOfFloors);
+                        } else {
+                            buildingVolume = 'N/A';
+                        }
+                        
+                        // Keep original construction period code and create new converted year field
+                        let convertedYearFromPeriod = null;
+                        
+                        if(constructionPeriod && !isNaN(parseInt(constructionPeriod))) {
+                            console.log(`🔍 Original construction period code: ${constructionPeriod} (type: ${typeof constructionPeriod})`);
+                            convertedYearFromPeriod = window.constructionPeriodCodeToYears ? window.constructionPeriodCodeToYears(parseInt(constructionPeriod)) : 1950;
+                            
+                            // Keep original period code in GBAUP
+                            props.GBAUP = constructionPeriod;
+                            // Create new field for converted year
+                            props.GBAUP_YEAR = convertedYearFromPeriod;
+                            
+                            console.log(`🏗️ Period code ${constructionPeriod} → converted year ${convertedYearFromPeriod}`);
+                            console.log(`📋 GBAUP (original): ${props.GBAUP}, GBAUP_YEAR (converted): ${props.GBAUP_YEAR}`);
+                        }
+
+                        //  --- construction year - use converted year if original is missing
+                        if (!constructionYear || isNaN(parseInt(constructionYear))) {
+                            if (convertedYearFromPeriod) {
+                                // Use the converted year from period code
+                                props.GBAUJ = convertedYearFromPeriod;
+                                console.log(`📅 Set construction year to ${convertedYearFromPeriod} from period code`);
+                            } else {
+                                // Fallback to random year
+                                const fallbackYear = window.constructionYear ? window.constructionYear(null, null) : 1950;
+                                props.GBAUJ = fallbackYear;
+                                console.log(`🎲 Set construction year to fallback ${fallbackYear}`);
+                            }
+                        }                       
+                        
+                                                
+                        // Description - lookup building description from GKLAS
+                        if (buildingClass && window.buildings) {
+                            const buildingInfo = window.buildings.find(info => 
+                                info.classes.includes(String(buildingClass))
+                            );
+                            props.DESCRIPTION = buildingInfo ? buildingInfo.description : 'Unknown building type';
+                        } else {
+                            props.DESCRIPTION = 'No class information';
+                        }
+                        
+                        // Volume - calculate if not present using volumeBuilding function
+                        if (!buildingVolume || buildingVolume === 'N/A' || buildingVolume <= 0) {
+                            if (buildingArea && numberOfFloors && buildingArea > 0 && numberOfFloors > 0) {
+                                buildingVolume = window.volumeBuilding ? window.volumeBuilding(buildingArea, numberOfFloors) : buildingArea * numberOfFloors * 2.7;
+                                props.GVOL = buildingVolume;
+                                console.log(`📦 Calculated volume: ${buildingVolume} m³ for building with area ${buildingArea} m² and ${numberOfFloors} floors`);
+                            } else {
+                                buildingVolume = 'N/A';
+                                props.GVOL = buildingVolume;
+                            }
+                        } else {
+                            props.GVOL = parseFloat(buildingVolume);
+                        }
+                        
+                        // Cost & Cost units
+                        if (buildingClass && window.buildings) {
+                            const buildingInfo = window.buildings.find(info => 
+                                info.classes.includes(String(buildingClass))
+                            );
+                            if (buildingInfo) {
+                                props.BASE_COST = buildingInfo.valeur_base;
+                                props.COST_UNITS = buildingInfo.unite;
+                                
+                                // Calculate total cost based on units
+                                if (buildingInfo.unite === "CHF/m³" && props.GVOL && props.GVOL !== 'N/A') {
+                                    props.TOTAL_COST = buildingInfo.valeur_base * parseFloat(props.GVOL);
+                                } else if (buildingInfo.unite === "CHF/unité résidentielle" && numberOfApartments && numberOfApartments > 0) {
+                                    props.TOTAL_COST = buildingInfo.valeur_base * parseInt(numberOfApartments);
+                                } else if (buildingInfo.unite === "CHF/m²" && buildingArea && buildingArea > 0) {
+                                    props.TOTAL_COST = buildingInfo.valeur_base * parseFloat(buildingArea);
+                                } else {
+                                    // Default calculation using volume if available
+                                    props.TOTAL_COST = buildingInfo.valeur_base * (props.GVOL !== 'N/A' ? parseFloat(props.GVOL) : 1);
+                                }
+                            } else {
+                                props.BASE_COST = 'Unknown';
+                                props.COST_UNITS = 'Unknown';
+                                props.TOTAL_COST = 'N/A';
+                            }
+                        } else {
+                            props.BASE_COST = 'No class info';
+                            props.COST_UNITS = 'No class info';
+                            props.TOTAL_COST = 'N/A';
+                        }
+                        
+                        console.log(`💰 Building ${index + 1}: Cost=${props.BASE_COST} ${props.COST_UNITS}, Total=${props.TOTAL_COST}`);
+                        
+                        console.log(`🏗️ Building ${index + 1}: Class=${buildingClass}, Description=${props.DESCRIPTION}, Volume=${props.GVOL}`);
+                        
+                        // DEBUG: Check if functions are available
+                        if (index === 0) {
+                            console.log('🔧 Available functions check:');
+                            console.log('  - window.buildings:', !!window.buildings);
+                            console.log('  - window.volumeBuilding:', !!window.volumeBuilding);
+                            console.log('  - Buildings data sample:', window.buildings?.[0]);
+                        }
+                        
+
+                        // Step 5: Temporal Hazard Probability - calculate using temporaHazardProbability function
+                        let temporalHazardProb = 'N/A';
+                        
+                        if (building?.recurrence && window.temporaHazardProbability && window.selectedHazard) {
+                            // Extract return period number from recurrence string
+                            const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                            
+                            if (returnPeriod) {
+                                temporalHazardProb = window.temporaHazardProbability(window.selectedHazard, returnPeriod) || 'N/A';
+                            }
+                        }
+                        
+                        // Store the value directly on the building object
+                        building.TEMPORAL_HAZARD_PROB = temporalHazardProb;
+
+                        // Step 6: Spatial Hazard Probability - calculate using spatialHazardProbValdorisk function
+                        let spatialHazardProb = 'N/A';
+                        
+                        if (building?.recurrence && typeof spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
+                            // Extract return period number from recurrence string
+                            const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                            
+                            if (returnPeriod) {
+                                // Debug logging for Step 6
+                                if (index < 3) {
+                                    console.log(`🔧 Step 6 Debug Building ${index + 1}:`);
+                                    console.log(`  - Return Period: ${returnPeriod}`);
+                                    console.log(`  - Hazard Type: ${window.selectedHazard}`);
+                                    console.log(`  - Function available: ${typeof spatialHazardProbValdorisk}`);
+                                }
+                                
+                                spatialHazardProb = spatialHazardProbValdorisk(returnPeriod, window.selectedHazard) || 'N/A';
+                                
+                                if (index < 3) {
+                                    console.log(`  - Calculated spatial hazard prob: ${spatialHazardProb}`);
+                                }
+                            }
+                        }
+                        
+                        // Store the value directly on the building object
+                        building.SPATIAL_HAZARD_PROB = spatialHazardProb;
+
+                        // Step 7: Vulnerability (EconoMe) - based on GKLAS and hazard intensity
+                        let vulnerability = 'N/A';
+                        
+                        if (buildingClass && building.intensity && window.buildings) {
+                            // Debug logging for Step 7
+                            if (index < 3) {
+                                console.log(`🔧 Step 7 Debug Building ${index + 1}:`);
+                                console.log(`  - Building Class (GKLAS): ${buildingClass}`);
+                                console.log(`  - Hazard Intensity: ${building.intensity}`);
+                            }
+                            
+                            // Find building info based on GKLAS
+                            const buildingInfo = window.buildings.find(b => 
+                                b.classes && b.classes.includes(String(buildingClass))
+                            );
+                            
+                            if (buildingInfo && buildingInfo.vulnerabilite) {
+                                // Map intensity to vulnerability key
+                                let intensityKey = null;
+                                const intensity = String(building.intensity).toLowerCase();
+                                
+                                if (intensity.includes('faible') || intensity.includes('low')) {
+                                    intensityKey = 'faible';
+                                } else if (intensity.includes('moyenne') || intensity.includes('medium')) {
+                                    intensityKey = 'moyenne';
+                                } else if (intensity.includes('forte') || intensity.includes('high')) {
+                                    intensityKey = 'forte';
+                                }
+                                
+                                if (intensityKey && buildingInfo.vulnerabilite[intensityKey] !== undefined) {
+                                    vulnerability = buildingInfo.vulnerabilite[intensityKey];
+                                    
+                                    if (index < 3) {
+                                        console.log(`  - Found building info: ${buildingInfo.description}`);
+                                        console.log(`  - Intensity key: ${intensityKey}`);
+                                        console.log(`  - Vulnerability value: ${vulnerability}`);
+                                        console.log(`  - Full vulnerabilite object:`, buildingInfo.vulnerabilite);
+                                    }
+                                } else {
+                                    if (index < 3) {
+                                        console.log(`  - No matching intensity key found for: ${intensity}`);
+                                    }
+                                }
+                            } else {
+                                if (index < 3) {
+                                    console.log(`  - No building info found for GKLAS: ${buildingClass}`);
+                                }
+                            }
+                        }
+                        
+                        // Store the value directly on the building object
+                        building.VULNERABILITY = vulnerability;
+
+                        // Step 8: Damage (EconoMe) - Multiplication of all risk components
+                        let damage = 'N/A';
+                        
+                        // Extract all required values for damage calculation
+                        const temporalProb = building.TEMPORAL_HAZARD_PROB;
+                        const spatialProb = building.SPATIAL_HAZARD_PROB;
+                        const vuln = building.VULNERABILITY;
+                        const cost = building.buildingProperties?.TOTAL_COST;
+                        
+                        // Check if all values are available and numeric
+                        if (temporalProb !== 'N/A' && temporalProb !== null && temporalProb !== undefined && !isNaN(temporalProb) &&
+                            spatialProb !== 'N/A' && spatialProb !== null && spatialProb !== undefined && !isNaN(spatialProb) &&
+                            vuln !== 'N/A' && vuln !== null && vuln !== undefined && !isNaN(vuln) &&
+                            cost !== 'N/A' && cost !== null && cost !== undefined && !isNaN(cost)) {
+                            
+                            // Calculate damage: Temporal Hazard Probability * Spatial Hazard Probability * Vulnerability * Cost
+                            damage = parseFloat(temporalProb) * parseFloat(spatialProb) * parseFloat(vuln) * parseFloat(cost);
+                            
+                            // Debug logging for Step 8
+                            if (index < 3) {
+                                console.log(`🔧 Step 8 Debug Building ${index + 1}:`);
+                                console.log(`  - Temporal Hazard Prob: ${temporalProb} (${typeof temporalProb})`);
+                                console.log(`  - Spatial Hazard Prob: ${spatialProb} (${typeof spatialProb})`);
+                                console.log(`  - Vulnerability: ${vuln} (${typeof vuln})`);
+                                console.log(`  - Total Cost: ${cost} (${typeof cost})`);
+                                console.log(`  - Damage = ${temporalProb} * ${spatialProb} * ${vuln} * ${cost} = ${damage}`);
+                                console.log(`  - Damage (CHF): ${damage.toLocaleString('en-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                            }
+                        } else {
+                            // Debug logging for missing values
+                            if (index < 3) {
+                                console.log(`🔧 Step 8 Debug Building ${index + 1}: Cannot calculate damage - missing values:`);
+                                console.log(`  - Temporal Hazard Prob: ${temporalProb} (valid: ${temporalProb !== 'N/A' && !isNaN(temporalProb)})`);
+                                console.log(`  - Spatial Hazard Prob: ${spatialProb} (valid: ${spatialProb !== 'N/A' && !isNaN(spatialProb)})`);
+                                console.log(`  - Vulnerability: ${vuln} (valid: ${vuln !== 'N/A' && !isNaN(vuln)})`);
+                                console.log(`  - Total Cost: ${cost} (valid: ${cost !== 'N/A' && !isNaN(cost)})`);
+                            }
+                        }
+                        
+                        // Store the value directly on the building object
+                        building.DAMAGE = damage;
+
+                        // Step 9: Vulnerability (Literature) - using vulBorterBart function
+                        let vulnerabilityLiterature = 'N/A';
+                        
+                        if (window.selectedHazard && typeof vulBorterBart === 'function') {
+                            // Get construction year with fallback logic
+                            let constructionYear = building.buildingProperties?.GBAUJ;
+                            
+                            // If construction year not present, use construction period year
+                            if (!constructionYear || constructionYear === 'N/A' || constructionYear === null || constructionYear === undefined) {
+                                constructionYear = building.buildingProperties?.GBAUP_YEAR;
+                            }
+                            
+                            // If construction period year is also null/not present, use 1960
+                            if (!constructionYear || constructionYear === 'N/A' || constructionYear === null || constructionYear === undefined) {
+                                constructionYear = 1960;
+                            }
+                            
+                            // Convert to integer
+                            const year = parseInt(constructionYear);
+                            
+                            // Map hazard type to function expected format
+                            let hazard = null;
+                            if (window.selectedHazard === 'rockfall' || window.selectedHazard === 'rock-fall' || window.selectedHazard === 'rock_fall') {
+                                hazard = 'rock_fall';
+                            } else if (window.selectedHazard === 'debris_flow' || window.selectedHazard === 'debrisflow' || window.selectedHazard === 'debris-flow') {
+                                hazard = 'debris_flow';
+                            }
+                            
+                            // Map intensity level to function expected format
+                            let intensityLevel = null;
+                            if (building.intensity) {
+                                const intensity = String(building.intensity).toLowerCase();
+                                if (intensity.includes('faible') || intensity.includes('low')) {
+                                    intensityLevel = 'low';
+                                } else if (intensity.includes('moyenne') || intensity.includes('medium') || intensity.includes('mean')) {
+                                    intensityLevel = 'mean';
+                                } else if (intensity.includes('forte') || intensity.includes('high')) {
+                                    intensityLevel = 'high';
+                                }
+                            }
+                            
+                            // Calculate vulnerability if all parameters are valid
+                            if (hazard && !isNaN(year) && intensityLevel) {
+                                vulnerabilityLiterature = vulBorterBart(hazard, year, intensityLevel);
+                                
+                                // Debug logging for Step 9
+                                if (index < 3) {
+                                    console.log(`🔧 Step 9 Debug Building ${index + 1}:`);
+                                    console.log(`  - Original construction year: ${building.buildingProperties?.GBAUJ}`);
+                                    console.log(`  - Construction period year: ${building.buildingProperties?.GBAUP_YEAR}`);
+                                    console.log(`  - Final year used: ${year}`);
+                                    console.log(`  - Hazard type: ${window.selectedHazard} → ${hazard}`);
+                                    console.log(`  - Intensity: ${building.intensity} → ${intensityLevel}`);
+                                    console.log(`  - vulBorterBart(${hazard}, ${year}, ${intensityLevel}) = ${vulnerabilityLiterature}`);
+                                }
+                            } else {
+                                // Debug logging for missing parameters
+                                if (index < 3) {
+                                    console.log(`🔧 Step 9 Debug Building ${index + 1}: Cannot calculate - missing parameters:`);
+                                    console.log(`  - Hazard: ${window.selectedHazard} → ${hazard} (valid: ${!!hazard})`);
+                                    console.log(`  - Year: ${year} (valid: ${!isNaN(year)})`);
+                                    console.log(`  - Intensity: ${building.intensity} → ${intensityLevel} (valid: ${!!intensityLevel})`);
+                                }
+                            }
+                        }
+                        
+                        // Store the value directly on the building object
+                        building.VULNERABILITY_LITERATURE = vulnerabilityLiterature;
+
+                        // Step 10: Damage (Literature) - Multiplication of all risk components with Literature vulnerability
+                        let damageLiterature = 'N/A';
+                        
+                        // Extract all required values for damage calculation
+                        const temporalProbLit = building.TEMPORAL_HAZARD_PROB;
+                        const spatialProbLit = building.SPATIAL_HAZARD_PROB;
+                        const vulnLit = building.VULNERABILITY_LITERATURE;
+                        const costLit = building.buildingProperties?.TOTAL_COST;
+                        
+                        // Check if all values are available and numeric
+                        if (temporalProbLit !== 'N/A' && temporalProbLit !== null && temporalProbLit !== undefined && !isNaN(temporalProbLit) &&
+                            spatialProbLit !== 'N/A' && spatialProbLit !== null && spatialProbLit !== undefined && !isNaN(spatialProbLit) &&
+                            vulnLit !== 'N/A' && vulnLit !== null && vulnLit !== undefined && !isNaN(vulnLit) &&
+                            costLit !== 'N/A' && costLit !== null && costLit !== undefined && !isNaN(costLit)) {
+                            
+                            // Calculate damage: Temporal Hazard Probability * Spatial Hazard Probability * Vulnerability (Literature) * Cost
+                            damageLiterature = parseFloat(temporalProbLit) * parseFloat(spatialProbLit) * parseFloat(vulnLit) * parseFloat(costLit);
+                            
+                            // Debug logging for Step 10
+                            if (index < 3) {
+                                console.log(`🔧 Step 10 Debug Building ${index + 1}:`);
+                                console.log(`  - Temporal Hazard Prob: ${temporalProbLit} (${typeof temporalProbLit})`);
+                                console.log(`  - Spatial Hazard Prob: ${spatialProbLit} (${typeof spatialProbLit})`);
+                                console.log(`  - Vulnerability (Literature): ${vulnLit} (${typeof vulnLit})`);
+                                console.log(`  - Total Cost: ${costLit} (${typeof costLit})`);
+                                console.log(`  - Damage = ${temporalProbLit} * ${spatialProbLit} * ${vulnLit} * ${costLit} = ${damageLiterature}`);
+                                console.log(`  - Damage (CHF): ${damageLiterature.toLocaleString('en-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                                
+                                // Compare with EconoMe damage if available
+                                if (building.DAMAGE !== 'N/A' && building.DAMAGE !== null && building.DAMAGE !== undefined && !isNaN(building.DAMAGE)) {
+                                    const damageEconome = parseFloat(building.DAMAGE);
+                                    const ratio = damageLiterature / damageEconome;
+                                    console.log(`  - EconoMe Damage: ${damageEconome.toLocaleString('en-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CHF`);
+                                    console.log(`  - Literature/EconoMe Ratio: ${ratio.toFixed(3)}`);
+                                }
+                            }
+                        } else {
+                            // Debug logging for missing values
+                            if (index < 3) {
+                                console.log(`🔧 Step 10 Debug Building ${index + 1}: Cannot calculate damage - missing values:`);
+                                console.log(`  - Temporal Hazard Prob: ${temporalProbLit} (valid: ${temporalProbLit !== 'N/A' && !isNaN(temporalProbLit)})`);
+                                console.log(`  - Spatial Hazard Prob: ${spatialProbLit} (valid: ${spatialProbLit !== 'N/A' && !isNaN(spatialProbLit)})`);
+                                console.log(`  - Vulnerability (Literature): ${vulnLit} (valid: ${vulnLit !== 'N/A' && !isNaN(vulnLit)})`);
+                                console.log(`  - Total Cost: ${costLit} (valid: ${costLit !== 'N/A' && !isNaN(costLit)})`);
+                            }
+                        }
+                        
+                        // Store the value directly on the building object
+                        building.DAMAGE_LITERATURE = damageLiterature;
+                        
+                        // End of new fields section
+                        // ===============================
+                    });                    
+                    console.log('✅ Numeric fields converted and calculations completed for', window.latestExtractionResults.buildingsAnalyzed.length, 'buildings');
+                }
+                
             });
         }
         
@@ -1543,6 +1959,8 @@ function initializeWorkflow() {
     // Function to show the analysis results modal
     function showAnalysisResultsModal(extractionResults) {
         console.log('📊 Showing analysis results modal with data:', extractionResults);
+        console.log('📊 Buildings analyzed count:', extractionResults?.buildingsAnalyzed?.length || 0);
+        console.log('📊 Buildings inside count:', extractionResults?.buildingsInside?.length || 0);
         
         const modal = document.getElementById('analysis-results-modal');
         if (!modal) {
@@ -1554,7 +1972,10 @@ function initializeWorkflow() {
         populateAnalysisSummary(extractionResults);
         
         // Create AG Grid table with buildings analyzed data
-        createAnalysisAGGridTable(extractionResults.buildingsAnalyzed);
+        createAnalysisAGGridTable(extractionResults.buildingsAnalyzed || []);
+        
+        // Create damage analysis graphs
+        createDamageAnalysisGraphs(extractionResults.buildingsAnalyzed || []);
         
         // Show the modal
         modal.style.display = 'block';
@@ -1629,6 +2050,8 @@ function initializeWorkflow() {
     // Function to create AG Grid table with buildings analyzed data
     function createAnalysisAGGridTable(buildingsAnalyzed) {
         console.log('📊 Creating AG Grid table with buildings analyzed data (Updated version - no deprecated props):', buildingsAnalyzed);
+        console.log('📊 Number of buildings to display:', buildingsAnalyzed?.length || 0);
+        console.log('📊 First building sample:', buildingsAnalyzed?.[0] || 'No data');
         
         const gridContainer = document.getElementById('analysis-ag-grid');
         if (!gridContainer) {
@@ -1640,107 +2063,437 @@ function initializeWorkflow() {
         gridContainer.innerHTML = '';
         
         if (!buildingsAnalyzed || buildingsAnalyzed.length === 0) {
+            console.warn('⚠️ No buildings analyzed data available');
             gridContainer.innerHTML = 
-                '<div class="text-center p-4"><h5>No buildings with hazard intersections found</h5></div>';
+                '<div class="text-center p-4"><h5>No buildings with hazard intersections found</h5><p>Try running the analysis again or check if buildings and hazards overlap.</p></div>';
             return;
         }
         
         // Prepare row data for AG Grid
-        const rowData = buildingsAnalyzed.map((building, index) => ({
-            index: index + 1,
-            egid: building.buildingProperties?.EGID || 'N/A',
-            buildingName: building.buildingProperties?.GGDENAME || 'N/A',
-            canton: building.buildingProperties?.GDEKT || 'N/A',
-            category: building.buildingProperties?.GKAT || 'N/A',
-            constructionYear: building.buildingProperties?.GBAUJ || 'N/A',
-            area: building.buildingProperties?.GAREA || 'N/A',
-            volume: building.buildingProperties?.GVOL || 'N/A',
-            apartments: building.buildingProperties?.GANZWHG || 'N/A',
-            hazardType: building.hazardType || 'N/A',
-            hazardIntensity: building.intensity || 'None',
-            hazardRecurrence: building.recurrence || 'None',
-            originalBuildingId: building.originalBuildingId || 'N/A'
-        }));
+        const rowData = buildingsAnalyzed.map((building, index) => {
+            // Extract temporal hazard probability with robust access
+            let temporalHazardProbValue = 'N/A';
+            
+            if (building.TEMPORAL_HAZARD_PROB !== undefined && building.TEMPORAL_HAZARD_PROB !== null) {
+                temporalHazardProbValue = building.TEMPORAL_HAZARD_PROB;
+            } else if (building?.recurrence && window.temporaHazardProbability && window.selectedHazard) {
+                // Fallback: calculate on-the-fly if stored value not accessible
+                const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                if (returnPeriod) {
+                    temporalHazardProbValue = window.temporaHazardProbability(window.selectedHazard, returnPeriod) || 'N/A';
+                }
+            }
+
+            // Extract spatial hazard probability with robust access
+            let spatialHazardProbValue = 'N/A';
+            
+            if (building.SPATIAL_HAZARD_PROB !== undefined && building.SPATIAL_HAZARD_PROB !== null) {
+                spatialHazardProbValue = building.SPATIAL_HAZARD_PROB;
+            } else if (building?.recurrence && typeof spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
+                // Fallback: calculate on-the-fly if stored value not accessible
+                const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                if (returnPeriod) {
+                    spatialHazardProbValue = spatialHazardProbValdorisk(returnPeriod, window.selectedHazard) || 'N/A';
+                }
+            }
+
+            // Extract vulnerability with robust access
+            let vulnerabilityValue = 'N/A';
+            
+            if (building.VULNERABILITY !== undefined && building.VULNERABILITY !== null) {
+                vulnerabilityValue = building.VULNERABILITY;
+            } else if (building?.buildingProperties?.GKLAS && building?.intensity && window.buildings) {
+                // Fallback: calculate on-the-fly if stored value not accessible
+                const buildingClass = building.buildingProperties.GKLAS;
+                const buildingInfo = window.buildings.find(b => 
+                    b.classes && b.classes.includes(String(buildingClass))
+                );
+                
+                if (buildingInfo && buildingInfo.vulnerabilite) {
+                    const intensity = String(building.intensity).toLowerCase();
+                    let intensityKey = null;
+                    
+                    if (intensity.includes('faible') || intensity.includes('low')) {
+                        intensityKey = 'faible';
+                    } else if (intensity.includes('moyenne') || intensity.includes('medium')) {
+                        intensityKey = 'moyenne';
+                    } else if (intensity.includes('forte') || intensity.includes('high')) {
+                        intensityKey = 'forte';
+                    }
+                    
+                    if (intensityKey && buildingInfo.vulnerabilite[intensityKey] !== undefined) {
+                        vulnerabilityValue = buildingInfo.vulnerabilite[intensityKey];
+                    }
+                }
+            }
+
+            // Extract damage with robust access
+            let damageValue = 'N/A';
+            
+            if (building.DAMAGE !== undefined && building.DAMAGE !== null) {
+                damageValue = building.DAMAGE;
+            } else {
+                // Fallback: calculate on-the-fly if stored value not accessible
+                const temporalProb = temporalHazardProbValue;
+                const spatialProb = spatialHazardProbValue;
+                const vuln = vulnerabilityValue;
+                const cost = building.buildingProperties?.TOTAL_COST;
+                
+                // Check if all values are available and numeric
+                if (temporalProb !== 'N/A' && temporalProb !== null && temporalProb !== undefined && !isNaN(temporalProb) &&
+                    spatialProb !== 'N/A' && spatialProb !== null && spatialProb !== undefined && !isNaN(spatialProb) &&
+                    vuln !== 'N/A' && vuln !== null && vuln !== undefined && !isNaN(vuln) &&
+                    cost !== 'N/A' && cost !== null && cost !== undefined && !isNaN(cost)) {
+                    
+                    damageValue = parseFloat(temporalProb) * parseFloat(spatialProb) * parseFloat(vuln) * parseFloat(cost);
+                }
+            }
+
+            // Extract vulnerability literature with robust access
+            let vulnerabilityLiteratureValue = 'N/A';
+            
+            if (building.VULNERABILITY_LITERATURE !== undefined && building.VULNERABILITY_LITERATURE !== null) {
+                vulnerabilityLiteratureValue = building.VULNERABILITY_LITERATURE;
+            } else if (window.selectedHazard && typeof vulBorterBart === 'function') {
+                // Fallback: calculate on-the-fly if stored value not accessible
+                let constructionYear = building.buildingProperties?.GBAUJ;
+                
+                // If construction year not present, use construction period year
+                if (!constructionYear || constructionYear === 'N/A' || constructionYear === null || constructionYear === undefined) {
+                    constructionYear = building.buildingProperties?.GBAUP_YEAR;
+                }
+                
+                // If construction period year is also null/not present, use 1960
+                if (!constructionYear || constructionYear === 'N/A' || constructionYear === null || constructionYear === undefined) {
+                    constructionYear = 1960;
+                }
+                
+                const year = parseInt(constructionYear);
+                
+                // Map hazard type
+                let hazard = null;
+                if (window.selectedHazard === 'rockfall' || window.selectedHazard === 'rock-fall' || window.selectedHazard === 'rock_fall') {
+                    hazard = 'rock_fall';
+                } else if (window.selectedHazard === 'debris_flow' || window.selectedHazard === 'debrisflow' || window.selectedHazard === 'debris-flow') {
+                    hazard = 'debris_flow';
+                }
+                
+                // Map intensity level
+                let intensityLevel = null;
+                if (building.intensity) {
+                    const intensity = String(building.intensity).toLowerCase();
+                    if (intensity.includes('faible') || intensity.includes('low')) {
+                        intensityLevel = 'low';
+                    } else if (intensity.includes('moyenne') || intensity.includes('medium') || intensity.includes('mean')) {
+                        intensityLevel = 'mean';
+                    } else if (intensity.includes('forte') || intensity.includes('high')) {
+                        intensityLevel = 'high';
+                    }
+                }
+                
+                // Calculate if all parameters are valid
+                if (hazard && !isNaN(year) && intensityLevel) {
+                    vulnerabilityLiteratureValue = vulBorterBart(hazard, year, intensityLevel);
+                }
+            }
+
+            // Extract damage literature with robust access
+            let damageLiteratureValue = 'N/A';
+            
+            if (building.DAMAGE_LITERATURE !== undefined && building.DAMAGE_LITERATURE !== null) {
+                damageLiteratureValue = building.DAMAGE_LITERATURE;
+            } else {
+                // Fallback: calculate on-the-fly if stored value not accessible
+                const temporalProbLit = temporalHazardProbValue;
+                const spatialProbLit = spatialHazardProbValue;
+                const vulnLit = vulnerabilityLiteratureValue;
+                const costLit = building.buildingProperties?.TOTAL_COST;
+                
+                // Check if all values are available and numeric
+                if (temporalProbLit !== 'N/A' && temporalProbLit !== null && temporalProbLit !== undefined && !isNaN(temporalProbLit) &&
+                    spatialProbLit !== 'N/A' && spatialProbLit !== null && spatialProbLit !== undefined && !isNaN(spatialProbLit) &&
+                    vulnLit !== 'N/A' && vulnLit !== null && vulnLit !== undefined && !isNaN(vulnLit) &&
+                    costLit !== 'N/A' && costLit !== null && costLit !== undefined && !isNaN(costLit)) {
+                    
+                    damageLiteratureValue = parseFloat(temporalProbLit) * parseFloat(spatialProbLit) * parseFloat(vulnLit) * parseFloat(costLit);
+                }
+            }
+            
+            // Try different ways to access the value
+            if (building.TEMPORAL_HAZARD_PROB !== undefined && building.TEMPORAL_HAZARD_PROB !== null) {
+                temporalHazardProbValue = building.TEMPORAL_HAZARD_PROB;
+                console.log(`✅ AG Grid Row ${index + 1}: Found TEMPORAL_HAZARD_PROB = ${temporalHazardProbValue}`);
+            } else if (building['TEMPORAL_HAZARD_PROB'] !== undefined && building['TEMPORAL_HAZARD_PROB'] !== null) {
+                temporalHazardProbValue = building['TEMPORAL_HAZARD_PROB'];
+                console.log(`✅ AG Grid Row ${index + 1}: Found via bracket notation = ${temporalHazardProbValue}`);
+            } else {
+                console.log(`❌ AG Grid Row ${index + 1}: TEMPORAL_HAZARD_PROB not found`);
+                console.log(`🔍 Available building keys:`, Object.keys(building));
+                console.log(`🔍 Building recurrence:`, building.recurrence);
+                
+                // Fallback: calculate on the fly
+                if (building?.recurrence && window.temporaHazardProbability && window.selectedHazard) {
+                    const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                    if (returnPeriod) {
+                        temporalHazardProbValue = window.temporaHazardProbability(window.selectedHazard, returnPeriod) || 'N/A';
+                        console.log(`🔄 AG Grid Row ${index + 1}: Calculated on-the-fly = ${temporalHazardProbValue}`);
+                    }
+                }
+            }
+            
+            // Debug: Log temporal hazard prob for first few buildings
+            if (index < 5) {
+                console.log(`📊 AG Grid Row ${index + 1}: temporalHazardProbValue = ${temporalHazardProbValue} (type: ${typeof temporalHazardProbValue})`);
+                console.log(`📊 AG Grid Row ${index + 1}: recurrence = ${building.recurrence}`);
+                console.log(`📊 AG Grid Row ${index + 1}: building ID = ${building.buildingProperties?.EGID || building.originalBuildingId}`);
+                
+                // CRITICAL: Check exactly what's in the building object
+                console.log(`🔎 AG Grid Building ${index + 1} TEMPORAL_HAZARD_PROB check:`);
+                console.log(`  - Direct access: building.TEMPORAL_HAZARD_PROB =`, building.TEMPORAL_HAZARD_PROB);
+                console.log(`  - Has property?`, building.hasOwnProperty('TEMPORAL_HAZARD_PROB'));
+                console.log(`  - Object keys containing TEMPORAL:`, Object.keys(building).filter(k => k.includes('TEMPORAL')));
+                
+                // DEBUG: Compare expected vs actual value for RP 30, 300, 100
+                const expectedValue = building.recurrence === 30 ? 0.02333 : 
+                                     building.recurrence === 300 ? 0.00333 : 
+                                     building.recurrence === 100 ? 0.00667 : 'unknown';
+                console.log(`🔎 AG Grid Row ${index + 1}: Expected value for RP ${building.recurrence} = ${expectedValue}, Actual = ${temporalHazardProbValue}`);
+                
+                // DEBUG: Check spatial hazard probability
+                console.log(`🔎 AG Grid Building ${index + 1} SPATIAL_HAZARD_PROB check:`);
+                console.log(`  - Direct access: building.SPATIAL_HAZARD_PROB =`, building.SPATIAL_HAZARD_PROB);
+                console.log(`  - Has property?`, building.hasOwnProperty('SPATIAL_HAZARD_PROB'));
+                console.log(`  - Object keys containing SPATIAL:`, Object.keys(building).filter(k => k.includes('SPATIAL')));
+                
+                // DEBUG: Compare expected spatial values for rockfall RP 30, 300, 100
+                const expectedSpatialValue = building.recurrence === 30 ? 0.01 : 
+                                            building.recurrence === 300 ? 0.05 : 
+                                            building.recurrence === 100 ? 0.03 : 'unknown';
+                console.log(`🔎 AG Grid Row ${index + 1}: Expected spatial value for RP ${building.recurrence} = ${expectedSpatialValue}, Actual = ${spatialHazardProbValue}`);
+            }
+            
+            // Debug: Log temporal hazard prob for first few buildings
+            if (index < 5) {
+                console.log(`� AG Grid Row ${index + 1}: temporalHazardProbValue = ${temporalHazardProbValue} (type: ${typeof temporalHazardProbValue})`);
+                console.log(`📊 AG Grid Row ${index + 1}: recurrence = ${building.recurrence}`);
+            }
+            
+            const rowObject = {
+                index: index + 1,
+                
+                // Location Information
+                canton: building.buildingProperties?.GDEKT || 'N/A',
+                communeName: building.buildingProperties?.GGDENAME || 'N/A',
+                
+                // Coordinates
+                coordinateE: building.buildingProperties?.GKODE || 'N/A',
+                coordinateN: building.buildingProperties?.GKODN || 'N/A',
+                
+                // Building Characteristics
+                buildingCategory: building.buildingProperties?.GKAT || 'N/A',
+                buildingClass: building.buildingProperties?.GKLAS || 'N/A',
+                buildingDescription: building.buildingProperties?.DESCRIPTION || 'N/A',
+                
+                // Construction Information
+                constructionYear: building.buildingProperties?.GBAUJ || 'N/A',
+                constructionPeriod: building.buildingProperties?.GBAUP || 'N/A',
+                constructionPeriodYear: building.buildingProperties?.GBAUP_YEAR || 'N/A',
+                
+                // Physical Characteristics
+                buildingArea: building.buildingProperties?.GAREA || 'N/A',
+                buildingVolume: building.buildingProperties?.GVOL || 'N/A',
+                numberOfFloors: building.buildingProperties?.GASTW || 'N/A',
+                numberOfApartments: building.buildingProperties?.GANZWHG || 'N/A',
+                
+                // Cost Information
+                baseCost: building.buildingProperties?.BASE_COST || 'N/A',
+                costUnits: building.buildingProperties?.COST_UNITS || 'N/A',
+                totalCost: building.buildingProperties?.TOTAL_COST || 'N/A',
+                
+                // Hazard Analysis
+                hazardType: building.hazardType || 'N/A',
+                hazardIntensity: building.intensity || 'None',
+                hazardRecurrence: building.recurrence || 'None',
+                temporalHazardProb: temporalHazardProbValue,
+                spatialHazardProb: spatialHazardProbValue,
+                vulnerability: vulnerabilityValue,
+                damage: damageValue,
+                vulnerabilityLiterature: vulnerabilityLiteratureValue,
+                damageLiterature: damageLiteratureValue,
+                
+                // Analysis Metadata
+                exportDate: building.buildingProperties?.GEXPDAT || 'N/A'
+            };
+            
+            // Debug: Log the complete row object for first few buildings
+            if (index < 5) {
+                console.log(`🎯 AG Grid Row ${index + 1} complete object:`, rowObject);
+                console.log(`🎯 AG Grid Row ${index + 1} temporalHazardProb in object:`, rowObject.temporalHazardProb);
+                console.log(`🎯 AG Grid Row ${index + 1} spatialHazardProb in object:`, rowObject.spatialHazardProb);
+                console.log(`🎯 AG Grid Row ${index + 1} vulnerability in object:`, rowObject.vulnerability);
+                console.log(`🎯 AG Grid Row ${index + 1} damage in object:`, rowObject.damage);
+                console.log(`🎯 AG Grid Row ${index + 1} vulnerabilityLiterature in object:`, rowObject.vulnerabilityLiterature);
+            }
+            
+            return rowObject;
+        });
+        
+        console.log('📊 Prepared row data length:', rowData.length);
+        console.log('📊 First 3 rows temporal hazard probs:', 
+            rowData.slice(0, 3).map((row, i) => `Row ${i + 1}: ${row.temporalHazardProb}`));
+        console.log('📊 First 3 rows spatial hazard probs:', 
+            rowData.slice(0, 3).map((row, i) => `Row ${i + 1}: ${row.spatialHazardProb}`));
+        console.log('📊 First 3 rows vulnerabilities:', 
+            rowData.slice(0, 3).map((row, i) => `Row ${i + 1}: ${row.vulnerability}`));
+        console.log('📊 First 3 rows damages:', 
+            rowData.slice(0, 3).map((row, i) => `Row ${i + 1}: ${row.damage}`));
+        console.log('📊 First 3 rows vulnerability literature:', 
+            rowData.slice(0, 3).map((row, i) => `Row ${i + 1}: ${row.vulnerabilityLiterature}`));
+        console.log('📊 First row complete sample:', rowData[0]);
         
         // Define column definitions
         const columnDefs = [
+            // Basic Info
             {
                 headerName: 'Index',
                 field: 'index',
-                width: 80,
                 cellStyle: { fontWeight: 'bold' }
             },
-            {
-                headerName: 'EGID',
-                field: 'egid',
-                width: 120,
-                filter: 'agTextColumnFilter'
-            },
-            {
-                headerName: 'Building Name',
-                field: 'buildingName',
-                width: 150,
-                filter: 'agTextColumnFilter',
-                tooltipField: 'buildingName'
-            },
+            
+            // Location Information
             {
                 headerName: 'Canton',
                 field: 'canton',
-                width: 100,
                 filter: 'agTextColumnFilter'
             },
             {
-                headerName: 'Category',
-                field: 'category',
-                width: 120,
+                headerName: 'Commune Name',
+                field: 'communeName',
+                filter: 'agTextColumnFilter',
+                tooltipField: 'communeName'
+            },
+            
+            // Coordinates
+            {
+                headerName: 'Coordinate E',
+                field: 'coordinateE',
+                filter: 'agTextColumnFilter',
+                valueFormatter: params => params.value !== 'N/A' ? Number(params.value).toFixed(2) : 'N/A'
+            },
+            {
+                headerName: 'Coordinate N',
+                field: 'coordinateN',
+                filter: 'agTextColumnFilter',
+                valueFormatter: params => params.value !== 'N/A' ? Number(params.value).toFixed(2) : 'N/A'
+            },
+            
+            // Building Characteristics
+            {
+                headerName: 'Building Category',
+                field: 'buildingCategory',
                 filter: 'agTextColumnFilter'
             },
+            {
+                headerName: 'Building Class',
+                field: 'buildingClass',
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Building Description',
+                field: 'buildingDescription',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#e8f5e8', fontWeight: 'bold' }
+            },
+            
+            // Construction Information
             {
                 headerName: 'Construction Year',
                 field: 'constructionYear',
-                width: 140,
                 filter: 'agTextColumnFilter'
             },
             {
+                headerName: 'Construction Period Code',
+                field: 'constructionPeriod',
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Construction Period Year',
+                field: 'constructionPeriodYear',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#e7f3ff', fontWeight: 'bold' }
+            },
+            
+            // Physical Characteristics
+            {
                 headerName: 'Area (m²)',
-                field: 'area',
-                width: 120,
+                field: 'buildingArea',
                 filter: 'agTextColumnFilter',
                 valueFormatter: params => params.value !== 'N/A' ? Number(params.value).toLocaleString() : 'N/A'
             },
             {
                 headerName: 'Volume (m³)',
-                field: 'volume',
-                width: 130,
+                field: 'buildingVolume',
                 filter: 'agTextColumnFilter',
                 valueFormatter: params => params.value !== 'N/A' ? Number(params.value).toLocaleString() : 'N/A'
             },
             {
-                headerName: 'Apartments',
-                field: 'apartments',
-                width: 110,
+                headerName: 'Number of Floors',
+                field: 'numberOfFloors',
                 filter: 'agTextColumnFilter'
             },
             {
+                headerName: 'Number of Apartments',
+                field: 'numberOfApartments',
+                filter: 'agTextColumnFilter'
+            },
+            
+            // Cost Information
+            {
+                headerName: 'Base Cost',
+                field: 'baseCost',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#fff4e6', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || params.value === 'Unknown' || params.value === 'No class info') return params.value;
+                    return Number(params.value).toLocaleString();
+                }
+            },
+            {
+                headerName: 'Cost Units',
+                field: 'costUnits',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#fff4e6' }
+            },
+            {
+                headerName: 'Total Cost (CHF)',
+                field: 'totalCost',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#e6f7ff', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || params.value === 'Unknown' || params.value === 'No class info') return params.value;
+                    return Number(params.value).toLocaleString();
+                }
+            },
+            
+            // Hazard Information
+            {
                 headerName: 'Hazard Type',
                 field: 'hazardType',
-                width: 120,
                 filter: 'agTextColumnFilter',
                 cellStyle: { backgroundColor: '#fff3cd' }
             },
             {
                 headerName: 'Hazard Intensity',
                 field: 'hazardIntensity',
-                width: 130,
                 filter: 'agTextColumnFilter',
                 cellStyle: params => {
                     const intensity = params.value?.toLowerCase();
                     if (intensity?.includes('forte') || intensity?.includes('high')) {
-                        return { backgroundColor: '#f8d7da', fontWeight: 'bold' };
+                        return { backgroundColor: '#f8d7da', fontWeight: 'bold', color: '#721c24' };
                     } else if (intensity?.includes('moyenne') || intensity?.includes('medium')) {
-                        return { backgroundColor: '#fff3cd', fontWeight: 'bold' };
+                        return { backgroundColor: '#fff3cd', fontWeight: 'bold', color: '#856404' };
                     } else if (intensity?.includes('faible') || intensity?.includes('low')) {
-                        return { backgroundColor: '#d1edff', fontWeight: 'bold' };
+                        return { backgroundColor: '#d1edff', fontWeight: 'bold', color: '#004085' };
                     }
                     return { backgroundColor: '#f8f9fa' };
                 }
@@ -1748,14 +2501,80 @@ function initializeWorkflow() {
             {
                 headerName: 'Hazard Recurrence',
                 field: 'hazardRecurrence',
-                width: 140,
                 filter: 'agTextColumnFilter',
                 cellStyle: { backgroundColor: '#fff3cd' }
             },
             {
-                headerName: 'Original Building ID',
-                field: 'originalBuildingId',
-                width: 160,
+                headerName: 'Temporal Hazard Probability',
+                field: 'temporalHazardProb',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#e8f5e8', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || isNaN(params.value)) return params.value;
+                    return Number(params.value).toFixed(5);
+                }
+            },
+            {
+                headerName: 'Spatial Hazard Probability',
+                field: 'spatialHazardProb',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#ffe8e8', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || isNaN(params.value)) return params.value;
+                    return Number(params.value).toFixed(5);
+                }
+            },
+            {
+                headerName: 'Vulnerability (EconoMe)',
+                field: 'vulnerability',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#e8e8ff', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || isNaN(params.value)) return params.value;
+                    return Number(params.value).toFixed(3);
+                }
+            },
+            {
+                headerName: 'Damage (EconoMe)',
+                field: 'damage',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#ffe8f0', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || isNaN(params.value)) return params.value;
+                    return Number(params.value).toLocaleString('en-CH', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                    }) + ' CHF';
+                }
+            },
+            {
+                headerName: 'Vulnerability (Literature)',
+                field: 'vulnerabilityLiterature',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#f0f8ff', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || isNaN(params.value)) return params.value;
+                    return Number(params.value).toFixed(3);
+                }
+            },
+            {
+                headerName: 'Damage (Literature)',
+                field: 'damageLiterature',
+                filter: 'agTextColumnFilter',
+                cellStyle: { backgroundColor: '#f8f0ff', fontWeight: 'bold' },
+                valueFormatter: params => {
+                    if (params.value === 'N/A' || isNaN(params.value)) return params.value;
+                    return Number(params.value).toLocaleString('en-CH', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                    }) + ' CHF';
+                }
+            },
+            
+            // Metadata
+            {
+                headerName: 'Export Date',
+                field: 'exportDate',
                 filter: 'agTextColumnFilter'
             }
         ];
@@ -1768,15 +2587,21 @@ function initializeWorkflow() {
                 sortable: true,
                 resizable: true,
                 filter: true,
-                floatingFilter: true
+                floatingFilter: true,
+                minWidth: 100,
+                // Remove flex when using autoSizeStrategy
+                suppressSizeToFit: false
             },
             pagination: true,
-            paginationPageSize: 50,
+            paginationPageSize: 20, // Use default page size
+            paginationPageSizeSelector: [20, 50, 100], // Explicitly set page size options
             rowSelection: {
                 mode: 'multiRow',
                 enableClickSelection: true
             },
             animateRows: true,
+            suppressHorizontalScroll: false, // Allow horizontal scroll if needed
+            // Remove autoSizeStrategy to avoid flex conflict
             getRowStyle: params => {
                 if (params.node.rowIndex % 2 === 0) {
                     return { backgroundColor: '#f8f9fa' };
@@ -1785,8 +2610,27 @@ function initializeWorkflow() {
             },
             onGridReady: function(params) {
                 console.log('✅ AG Grid ready with', rowData.length, 'rows');
-                // Auto-size columns to fit content
+                console.log('📊 Sample row data:', rowData.slice(0, 2));
+                
+                // Debug: Check what AG Grid actually has as row data
+                console.log('🔍 AG Grid internal row data check:');
+                params.api.forEachNode((node, index) => {
+                    if (index < 3) {
+                        console.log(`🔍 AG Grid Node ${index + 1} data:`, node.data);
+                        console.log(`🔍 AG Grid Node ${index + 1} temporalHazardProb:`, node.data?.temporalHazardProb);
+                    }
+                });
+                
+                // Size columns to fit the grid width
                 params.api.sizeColumnsToFit();
+                
+                // Add resize listener to adjust columns when modal is resized
+                const resizeObserver = new ResizeObserver(() => {
+                    if (params.api) {
+                        params.api.sizeColumnsToFit();
+                    }
+                });
+                resizeObserver.observe(gridContainer);
             }
         };
         
@@ -1874,6 +2718,231 @@ function initializeWorkflow() {
         highlightAnalyzedBuildings(buildingsAnalyzed);
     }
     
+    // Function to create damage analysis graphs using Plotly
+    function createDamageAnalysisGraphs(buildingsAnalyzed) {
+        if (!buildingsAnalyzed || buildingsAnalyzed.length === 0) {
+            console.log('⚠️ No buildings analyzed - cannot create damage graphs');
+            return;
+        }
+
+        console.log('📊 Creating damage analysis graphs...');
+        console.log('📊 Buildings data received:', buildingsAnalyzed.length, 'buildings');
+        console.log('📊 First building structure:', buildingsAnalyzed[0]);
+
+        // Add a small delay to ensure modal is fully rendered
+        setTimeout(() => {
+            try {
+                // Check if graph containers exist
+                const economeContainer = document.getElementById('econome-damage-graph');
+                const literatureContainer = document.getElementById('literature-damage-graph');
+                
+                if (!economeContainer) {
+                    console.error('❌ EconoMe graph container not found in DOM');
+                    return;
+                }
+                if (!literatureContainer) {
+                    console.error('❌ Literature graph container not found in DOM');
+                    return;
+                }
+                
+                console.log('📊 Graph containers found, proceeding with data processing...');
+
+                // Initialize damage totals for different return periods
+                const economeDamageTotals = {
+                    period30: 0,
+                    period100: 0, 
+                    period300: 0
+                };
+
+                const literatureDamageTotals = {
+                    period30: 0,
+                    period100: 0,
+                    period300: 0
+                };
+
+                // Process each building to calculate damage totals by return period
+                buildingsAnalyzed.forEach((building, index) => {
+                    // Debug first few buildings to understand data structure
+                    if (index < 3) {
+                        console.log(`📊 Building ${index + 1} data:`, building);
+                        console.log(`📊 Building ${index + 1} recurrence properties:`, {
+                            recurrence: building.recurrence,
+                            hazardRecurrence: building.hazardRecurrence,
+                            returnPeriod: building.returnPeriod,
+                            return_period: building.return_period
+                        });
+                        console.log(`📊 Building ${index + 1} damage properties:`, {
+                            damage: building.damage,
+                            DAMAGE: building.DAMAGE,
+                            damageLiterature: building.damageLiterature,
+                            DAMAGE_LITERATURE: building.DAMAGE_LITERATURE
+                        });
+                    }
+
+                    // Get hazard properties for return period identification - try multiple possible field names
+                    const returnPeriod = building.recurrence || building.hazardRecurrence || building.returnPeriod || building.return_period;
+                    
+                    // Get damage values - try multiple possible field names
+                    const economeDamage = parseFloat(building.damage || building.DAMAGE) || 0;
+                    const literatureDamage = parseFloat(building.damageLiterature || building.DAMAGE_LITERATURE) || 0;
+
+                    if (index < 3) {
+                        console.log(`📊 Processing building ${index + 1}: period=${returnPeriod}, econome=${economeDamage}, literature=${literatureDamage}`);
+                    }
+
+                    // Sum damages by return period
+                    if (returnPeriod === 30 || returnPeriod === '30') {
+                        economeDamageTotals.period30 += economeDamage;
+                        literatureDamageTotals.period30 += literatureDamage;
+                    } else if (returnPeriod === 100 || returnPeriod === '100') {
+                        economeDamageTotals.period100 += economeDamage;
+                        literatureDamageTotals.period100 += literatureDamage;
+                    } else if (returnPeriod === 300 || returnPeriod === '300') {
+                        economeDamageTotals.period300 += economeDamage;
+                        literatureDamageTotals.period300 += literatureDamage;
+                    }
+                });
+
+                // Calculate totals (sum of all periods)
+                const economeTotal = economeDamageTotals.period30 + economeDamageTotals.period100 + economeDamageTotals.period300;
+                const literatureTotal = literatureDamageTotals.period30 + literatureDamageTotals.period100 + literatureDamageTotals.period300;
+
+                console.log('📊 Damage totals calculated:');
+                console.log('📊 EconoMe totals:', economeDamageTotals);
+                console.log('📊 Literature totals:', literatureDamageTotals);
+                console.log('📊 EconoMe total sum:', economeTotal);
+                console.log('📊 Literature total sum:', literatureTotal);
+
+                // Prepare data for graphs
+                const economeDamageValues = [
+                    economeDamageTotals.period30,
+                    economeDamageTotals.period100,
+                    economeDamageTotals.period300,
+                    economeTotal
+                ];
+
+                const literatureDamageValues = [
+                    literatureDamageTotals.period30,
+                    literatureDamageTotals.period100,
+                    literatureDamageTotals.period300,
+                    literatureTotal
+                ];
+
+                const returnPeriodLabels = ['T30', 'T100', 'T300', 'TOTAL'];
+                const barColors = ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(75, 192, 192, 0.7)', 'rgba(255, 194, 152, 0.7)'];
+
+                // Create EconoMe damage graph
+                const economeGraphData = [{
+                    x: returnPeriodLabels,
+                    y: economeDamageValues,
+                    type: 'bar',
+                    name: 'EconoMe Method',
+                    marker: {
+                        color: barColors,
+                        line: {
+                            color: 'rgba(0,0,0,0.2)',
+                            width: 1
+                        }
+                    },
+                    text: economeDamageValues.map(val => `${val.toLocaleString('en-CH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} CHF`),
+                    textposition: 'auto'
+                }];
+
+                const economeGraphLayout = {
+                    title: {
+                        text: `Building Damage Costs - EconoMe Method (${window.selectedHazard || 'Unknown Hazard'})`,
+                        font: { size: 16 }
+                    },
+                    xaxis: {
+                        title: 'Return Periods and Total',
+                        font: { size: 12 }
+                    },
+                    yaxis: {
+                        title: 'Damage Cost (CHF) per year',
+                        font: { size: 12 },
+                        tickformat: ',.0f'
+                    },
+                    margin: { l: 80, r: 50, t: 60, b: 60 },
+                    showlegend: false,
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)'
+                };
+
+                // Create Literature damage graph
+                const literatureGraphData = [{
+                    x: returnPeriodLabels,
+                    y: literatureDamageValues,
+                    type: 'bar',
+                    name: 'Literature Method',
+                    marker: {
+                        color: barColors,
+                        line: {
+                            color: 'rgba(0,0,0,0.2)',
+                            width: 1
+                        }
+                    },
+                    text: literatureDamageValues.map(val => `${val.toLocaleString('en-CH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} CHF`),
+                    textposition: 'auto'
+                }];
+
+                const literatureGraphLayout = {
+                    title: {
+                        text: `Building Damage Costs - Literature Method (${window.selectedHazard || 'Unknown Hazard'})`,
+                        font: { size: 16 }
+                    },
+                    xaxis: {
+                        title: 'Return Periods and Total',
+                        font: { size: 12 }
+                    },
+                    yaxis: {
+                        title: 'Damage Cost (CHF) per year',
+                        font: { size: 12 },
+                        tickformat: ',.0f'
+                    },
+                    margin: { l: 80, r: 50, t: 60, b: 60 },
+                    showlegend: false,
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)'
+                };
+
+                // Configuration for responsive graphs
+                const graphConfig = {
+                    responsive: true,
+                    displayModeBar: true,
+                    displaylogo: false,
+                    modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d']
+                };
+
+                // Create the graphs using Plotly
+                console.log('📊 Creating EconoMe graph with data:', economeDamageValues);
+                console.log('📊 Creating Literature graph with data:', literatureDamageValues);
+                
+                Plotly.newPlot('econome-damage-graph', economeGraphData, economeGraphLayout, graphConfig);
+                Plotly.newPlot('literature-damage-graph', literatureGraphData, literatureGraphLayout, graphConfig);
+                
+                console.log('✅ Damage analysis graphs created successfully');
+                console.log(`📊 EconoMe totals: T30=${economeDamageTotals.period30.toLocaleString()}, T100=${economeDamageTotals.period100.toLocaleString()}, T300=${economeDamageTotals.period300.toLocaleString()}, Total=${economeTotal.toLocaleString()}`);
+                console.log(`📚 Literature totals: T30=${literatureDamageTotals.period30.toLocaleString()}, T100=${literatureDamageTotals.period100.toLocaleString()}, T300=${literatureDamageTotals.period300.toLocaleString()}, Total=${literatureTotal.toLocaleString()}`);
+                
+            } catch (error) {
+                console.error('❌ Error creating damage analysis graphs:', error);
+                
+                // Create fallback content for the graph containers
+                const economeContainer = document.getElementById('econome-damage-graph');
+                const literatureContainer = document.getElementById('literature-damage-graph');
+                
+                if (economeContainer) {
+                    economeContainer.innerHTML = 
+                        '<div class="text-center p-4 text-danger"><h5>Error creating EconoMe graph</h5><p>' + error.message + '</p></div>';
+                }
+                if (literatureContainer) {
+                    literatureContainer.innerHTML = 
+                        '<div class="text-center p-4 text-danger"><h5>Error creating Literature graph</h5><p>' + error.message + '</p></div>';
+                }
+            }
+        }, 100); // 100ms delay to ensure modal is rendered
+    }
+
     // Function to highlight analyzed buildings on the map
     function highlightAnalyzedBuildings(analyzedBuildings) {
         if (!window.map || !analyzedBuildings || analyzedBuildings.length === 0) {

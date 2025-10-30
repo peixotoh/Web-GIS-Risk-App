@@ -110,9 +110,8 @@ function resetFormControls() {
         toggle.checked = false;
     });
     
-    // Reset building toggle
-    const buildingToggle = document.getElementById('buildings-toggle');
-    if (buildingToggle) buildingToggle.checked = false;
+    // Reset building button (no state to reset since button always adds/refreshes)
+    // Building state is managed by the button click action
     
     // Reset vulnerability controls
     const vulnerabilitySelect = document.getElementById('vulnerability-select');
@@ -156,6 +155,11 @@ function removeAllLayers() {
     if (window.drawnPolygon && window.map) {
         window.map.removeLayer(window.drawnPolygon);
         window.drawnPolygon = null;
+    }
+    
+    // Remove analysis layers
+    if (typeof window.removeExistingAnalysisLayers === 'function') {
+        window.removeExistingAnalysisLayers();
     }
     
     // Note: We intentionally do NOT remove the Swiss administrative boundaries layer
@@ -205,8 +209,8 @@ function initializeWorkflow() {
     // Initialize data source controls
     initializeDataSourceControls();
     
-    // Initialize building toggle
-    initializeBuildingToggle();
+    // Initialize building button
+    initializeBuildingButton();
     
     // Initialize vulnerability controls
     initializeVulnerabilityControls();
@@ -974,87 +978,49 @@ function initializeWorkflow() {
         }
     }
     
-    // Building toggle functionality
-    function initializeBuildingToggle() {
-        const buildingsToggle = document.getElementById('buildings-toggle');
+    // Building add button functionality
+    function initializeBuildingButton() {
+        const addBuildingsBtn = document.getElementById('add-buildings-btn');
         
-        if (buildingsToggle) {
-            // Helper: enable toggle only when zoom >= 15
-            const updateToggleAvailability = () => {
+        if (addBuildingsBtn) {
+            addBuildingsBtn.addEventListener('click', function() {
+                console.log('🏢 Add buildings to map clicked');
+                
+                // Only fetch buildings if zoom is sufficient and map is available
+                if (!window.map || typeof window.map.getZoom !== 'function') {
+                    alert('Map not ready');
+                    return;
+                }
+                const z = window.map.getZoom();
+                if (z < 15) {
+                    alert('Zoom in to level 15 or more to load buildings.');
+                    return;
+                }
+
+                // Remove existing buildings first
+                removeBuildingsData();
+
+                // Compute current map view bbox (WGS84) and convert to Swiss LV95 for Supabase
                 try {
-                    if (!window.map || typeof window.map.getZoom !== 'function') return;
-                    const z = window.map.getZoom();
-                    // Enable toggle when zoom >= 15, otherwise disable and remove buildings
-                    if (z >= 15) {
-                        buildingsToggle.disabled = false;
+                    const bounds = window.map.getBounds();
+                    const sw = bounds.getSouthWest();
+                    const ne = bounds.getNorthEast();
+                    // convert to Swiss LV95 if converter available
+                    if (typeof window.WGS84ToSwiss === 'function') {
+                        const minSwiss = window.WGS84ToSwiss(sw.lng, sw.lat);
+                        const maxSwiss = window.WGS84ToSwiss(ne.lng, ne.lat);
+                        window.currentBBox = [minSwiss.east, minSwiss.north, maxSwiss.east, maxSwiss.north];
                     } else {
-                        // If currently enabled, remove buildings because we're too zoomed out
-                        if (buildingsToggle.checked) {
-                            buildingsToggle.checked = false;
-                            removeBuildingsData();
-                        }
-                        buildingsToggle.disabled = true;
+                        window.currentBBox = [sw.lng, sw.lat, ne.lng, ne.lat];
                     }
-                } catch (e) { /* ignore */ }
-            };
-
-            // Attach zoom handler to update toggle availability
-            try {
-                if (window._buildingToggleZoomHandler && window.map) {
-                    window.map.off('zoomend', window._buildingToggleZoomHandler);
+                    console.log('📦 Set window.currentBBox (from map view) for Supabase:', window.currentBBox);
+                } catch (err) {
+                    console.warn('⚠️ Could not compute map bbox for Supabase query', err);
                 }
-                window._buildingToggleZoomHandler = updateToggleAvailability;
-                if (window.map) window.map.on('zoomend', window._buildingToggleZoomHandler);
-                // Run once to initialize state
-                updateToggleAvailability();
-            } catch (e) { /* ignore */ }
 
-            buildingsToggle.addEventListener('change', function(e) {
-                buildingsEnabled = e.target.checked;
-                console.log('Buildings toggle:', buildingsEnabled);
-
-                if (buildingsEnabled) {
-                    // Only fetch buildings if zoom is sufficient and map is available
-                    if (!window.map || typeof window.map.getZoom !== 'function') {
-                        alert('Map not ready');
-                        buildingsToggle.checked = false;
-                        buildingsEnabled = false;
-                        return;
-                    }
-                    const z = window.map.getZoom();
-                    if (z < 15) {
-                        alert('Zoom in to level 15 or more to load buildings.');
-                        buildingsToggle.checked = false;
-                        buildingsEnabled = false;
-                        return;
-                    }
-
-                    // Compute current map view bbox (WGS84) and convert to Swiss LV95 for Supabase
-                    try {
-                        const bounds = window.map.getBounds();
-                        const sw = bounds.getSouthWest();
-                        const ne = bounds.getNorthEast();
-                        // convert to Swiss LV95 if converter available
-                        if (typeof window.WGS84ToSwiss === 'function') {
-                            const minSwiss = window.WGS84ToSwiss(sw.lng, sw.lat);
-                            const maxSwiss = window.WGS84ToSwiss(ne.lng, ne.lat);
-                            window.currentBBox = [minSwiss.east, minSwiss.north, maxSwiss.east, maxSwiss.north];
-                        } else {
-                            window.currentBBox = [sw.lng, sw.lat, ne.lng, ne.lat];
-                        }
-                        console.log('📦 Set window.currentBBox (from map view) for Supabase:', window.currentBBox);
-                    } catch (err) {
-                        console.warn('⚠️ Could not compute map bbox for Supabase query', err);
-                    }
-
-                    // Trigger the buildings load for the current bbox
-                    console.log('Adding buildings layer for current map view...');
-                    loadBuildingsData();
-                } else {
-                    // Remove buildings layer from map
-                    console.log('Removing buildings layer...');
-                    removeBuildingsData();
-                }
+                // Trigger the buildings load for the current bbox
+                console.log('Adding buildings layer for current map view...');
+                loadBuildingsData();
                 checkWorkflowProgress();
             });
         }
@@ -1241,11 +1207,48 @@ function initializeWorkflow() {
     }
 
     // Helper to build building popup HTML from properties and optional geometry
-    function buildBuildingPopupContent(props = {}, geometry = null) {
+    function buildBuildingPopupContent(props = {}, geometry = null, buildingAnalysisData = null) {
         try {
             const priority = ['EGID','GGDENAME','GDEKT','GKAT','GBAUJ','GAREA','GVOL','id','name','address','adresse','egid','gkd','gkode'];
             const used = new Set();
             let html = `<div class="building-popup"><h6><strong>🏢 Building</strong></h6>`;
+            
+            // Add hazard information section if analysis data is available
+            if (buildingAnalysisData && Array.isArray(buildingAnalysisData)) {
+                // Find all hazard exposures for this building using EGID
+                const buildingEGID = props.EGID;
+                const hazardExposures = buildingAnalysisData.filter(building => {
+                    const buildingProps = building.buildingProperties || {};
+                    return buildingProps.EGID === buildingEGID;
+                });
+                
+                if (hazardExposures.length > 0) {
+                    html += `<div style="background-color:#f0f8ff;padding:8px;margin:8px 0;border-radius:4px;border-left:4px solid #007bff;">`;
+                    html += `<h6><strong>🚨 Hazard Information</strong></h6>`;
+                    
+                    if (hazardExposures.length === 1) {
+                        const exposure = hazardExposures[0];
+                        html += `<p><strong>Hazard Type:</strong> ${exposure.hazardType || window.selectedHazard || 'N/A'}</p>`;
+                        html += `<p><strong>Intensity:</strong> ${exposure.intensity || 'N/A'}</p>`;
+                        html += `<p><strong>Recurrence Period:</strong> ${exposure.recurrence || 'N/A'}</p>`;
+                    } else {
+                        html += `<p><strong>Multiple Hazard Exposures (${hazardExposures.length}):</strong></p>`;
+                        hazardExposures.forEach((exposure, index) => {
+                            html += `<div style="margin-left:10px;padding:4px 0;border-bottom:1px solid #ddd;">`;
+                            html += `<strong>Exposure ${index + 1}:</strong><br>`;
+                            html += `• Type: ${exposure.hazardType || window.selectedHazard || 'N/A'}<br>`;
+                            html += `• Intensity: ${exposure.intensity || 'N/A'}<br>`;
+                            html += `• Recurrence: ${exposure.recurrence || 'N/A'}`;
+                            html += `</div>`;
+                        });
+                    }
+                    html += `</div>`;
+                } else {
+                    html += `<div style="background-color:#fff3cd;padding:8px;margin:8px 0;border-radius:4px;border-left:4px solid #ffc107;">`;
+                    html += `<p><strong>ℹ️ No Hazard Exposure</strong> - Building not analyzed or outside hazard zones</p>`;
+                    html += `</div>`;
+                }
+            }
 
             for (const key of priority) {
                 if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== undefined && props[key] !== '') {
@@ -1324,7 +1327,7 @@ function initializeWorkflow() {
                     onEachFeature: function(feature, layer) {
                         try {
                             const p = feature.properties || {};
-                            const html = buildBuildingPopupContent(p, feature.geometry);
+                            const html = buildBuildingPopupContent(p, feature.geometry, window.latestExtractionResults?.buildingsAnalyzed);
                             layer.bindPopup(html);
                         } catch (e) { layer.bindPopup('<div class="building-popup">Building feature</div>'); }
                     }
@@ -1380,7 +1383,7 @@ function initializeWorkflow() {
                                 };
                                 
                                 const props = b || {};
-                                const html = buildBuildingPopupContent(props, null);
+                                const html = buildBuildingPopupContent(props, null, window.latestExtractionResults?.buildingsAnalyzed);
                                 m.bindPopup(html);
                                 try { m.on && m.on('click', function(){ this.openPopup(); }); } catch(e){}
                                 markers.push(m);
@@ -1936,6 +1939,497 @@ function initializeWorkflow() {
                     });                    
                     console.log('✅ Numeric fields converted and calculations completed for', window.latestExtractionResults.buildingsAnalyzed.length, 'buildings');
                 }
+
+                // ===============================================================================
+                // ================= CAT MODEL METHOD 3 - MONTE CARLO SIMULATIONS ================
+                // ===============================================================================
+                
+                console.log('🎲 Starting CAT Model Method 3 Monte Carlo Analysis...');
+                
+                // Initialize Method 3 results array for new analysis (clear previous results)
+                window.method3Results = [];
+                console.log('🔄 Method 3 results array initialized for multi-building analysis');
+                
+                // Get simulation count from input
+                const simulationCountElement = document.getElementById('simulation-count');
+                const numSimulations = simulationCountElement ? parseInt(simulationCountElement.value) : 100; // Changed default to 100 for debugging
+                console.log('Number of simulations:', numSimulations);
+                
+                // Calculate spatial probability once (before building loop)
+                const hazardType = window.selectedHazard || 'rockfall';
+                console.log('Selected hazard type:', hazardType);
+                console.log('randomSpatialProb function available:', typeof randomSpatialProb);
+                
+                let spatialProb = 0.5; // Default fallback
+                if (typeof randomSpatialProb === 'function') {
+                    try {
+                        spatialProb = randomSpatialProb(hazardType);
+                        console.log('randomSpatialProb result:', spatialProb);
+                    } catch (error) {
+                        console.warn('Error calling randomSpatialProb:', error);
+                        spatialProb = 0.5; // Fallback
+                    }
+                } else {
+                    console.warn('randomSpatialProb function not available, using fallback');
+                }
+                
+                console.log('Final calculated spatial probability:', spatialProb, 'for hazard:', hazardType);
+                
+                // Method 3: Loop through all buildings, find first real hazard exposure per building
+                // For each building, collect ALL rows first, then find the best combination
+                if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
+                    const allBuildings = window.latestExtractionResults.buildingsAnalyzed;
+                    const processedBuildings = new Set(); // Track which buildings we've already processed
+                    let buildingsProcessedCount = 0;
+                    
+                    console.log(`Method 3: Scanning ${allBuildings.length} building rows to find real hazard exposures...`);
+                    
+                    // Group buildings by EGID (unique building identifier) first to understand the data structure
+                    const buildingGroups = new Map();
+                    allBuildings.forEach((building, index) => {
+                        const props = building.buildingProperties || {};
+                        const egid = props.EGID || building.EGID; // Use EGID as the unique identifier
+                        
+                        if (!egid) {
+                            console.warn(`⚠️ Row ${index + 1}: No EGID found, skipping...`);
+                            return;
+                        }
+                        
+                        if (!buildingGroups.has(egid)) {
+                            buildingGroups.set(egid, []);
+                        }
+                        buildingGroups.get(egid).push({
+                            building: building,
+                            index: index,
+                            intensity: building.intensity || 'aucune_atteinte',
+                            gklas: building.GKLAS || props.GKLAS,
+                            gebnr: props.GEBNR || building.id
+                        });
+                    });
+                    
+                    console.log(`Method 3: Found ${buildingGroups.size} unique buildings (by EGID) with multiple exposures`);
+                    
+                    // Process each building group
+                    buildingGroups.forEach((buildingRows, egid) => {
+                        console.log(`\n🏢 Processing EGID ${egid} with ${buildingRows.length} rows:`);
+                        
+                        // Log all rows for this building
+                        buildingRows.forEach((row, i) => {
+                            console.log(`  Row ${i + 1}: Intensity="${row.intensity}", GKLAS=${row.gklas}, GEBNR=${row.gebnr}`);
+                        });
+                        
+                        // Find the best row: real hazard + consistent GKLAS
+                        // Priority: 1) Real hazard, 2) Most common GKLAS, 3) Highest intensity
+                        const realHazardRows = buildingRows.filter(row => {
+                            const intensity = row.intensity;
+                            return intensity && 
+                                   intensity !== 'aucune_atteinte' && 
+                                   intensity !== 'aucune atteinte' && 
+                                   intensity !== 'None' && 
+                                   intensity.toLowerCase() !== 'none';
+                        });
+                        
+                        if (realHazardRows.length === 0) {
+                            console.log(`  ❌ No real hazard exposures found for EGID ${egid}`);
+                            return;
+                        }
+                        
+                        console.log(`  ✅ Found ${realHazardRows.length} real hazard exposures`);
+                        
+                        // Find the most common GKLAS among real hazard rows
+                        const gklasCount = {};
+                        realHazardRows.forEach(row => {
+                            const gklas = row.gklas;
+                            gklasCount[gklas] = (gklasCount[gklas] || 0) + 1;
+                        });
+                        
+                        const mostCommonGklas = Object.keys(gklasCount).reduce((a, b) => 
+                            gklasCount[a] > gklasCount[b] ? a : b
+                        );
+                        
+                        console.log(`  📊 GKLAS distribution in real hazard rows:`, gklasCount);
+                        console.log(`  🎯 Most common GKLAS: ${mostCommonGklas}`);
+                        
+                        // Select the best row: same GKLAS as most common, highest intensity
+                        const bestRow = realHazardRows
+                            .filter(row => row.gklas == mostCommonGklas)
+                            .sort((a, b) => {
+                                const intensityRank = (intensity) => {
+                                    const intensityStr = String(intensity || '').toLowerCase();
+                                    if (intensityStr.includes('forte') || intensityStr.includes('high')) return 4;
+                                    if (intensityStr.includes('moyenne') || intensityStr.includes('mean')) return 3;
+                                    if (intensityStr.includes('faible') || intensityStr.includes('low')) return 2;
+                                    return 1;
+                                };
+                                return intensityRank(b.intensity) - intensityRank(a.intensity);
+                            })[0];
+                        
+                        if (!bestRow) {
+                            console.log(`  ❌ No suitable row found for EGID ${egid}`);
+                            return;
+                        }
+                        
+                        console.log(`  🏆 Selected row: Intensity="${bestRow.intensity}", GKLAS=${bestRow.gklas}, GEBNR=${bestRow.gebnr}`);
+                        
+                        // Process this building with Method 3
+                        buildingsProcessedCount++;
+                        const building = bestRow.building;
+                        const props = building.buildingProperties || {};
+                        const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
+                        
+                        // Call Method 3 function for this building
+                        if (typeof window.method3CatModel === 'function') {
+                            console.log(`📞 Calling method3CatModel for EGID ${egid}: GKLAS=${bestRow.gklas}, intensity=${bestRow.intensity}`);
+                            
+                            const method3Result = window.method3CatModel(hazardType, buildCost, spatialProb, numSimulations, bestRow.gklas, bestRow.intensity);
+                            
+                            if (method3Result) {
+                                // Store Method 3 results on building object
+                                building.METHOD3_RESULTS = method3Result;
+                                building.METHOD3_MEAN_DAMAGE = method3Result?.meanDamage || 0;
+                                building.METHOD3_MIN_DAMAGE = method3Result?.minDamage || 0;
+                                building.METHOD3_MAX_DAMAGE = method3Result?.maxDamage || 0;
+                                building.METHOD3_STD_DEV = method3Result?.stdDev || 0;
+                                building.METHOD3_INTENSITY_USED = bestRow.intensity;
+                                building.METHOD3_GKLAS_USED = bestRow.gklas;
+                                
+                                console.log(`✅ Method 3 completed for EGID ${egid}: GKLAS=${bestRow.gklas}, intensity=${bestRow.intensity}, mean damage=${building.METHOD3_MEAN_DAMAGE.toFixed(2)} CHF`);
+                            } else {
+                                console.error(`❌ Method 3 returned null for EGID ${egid}`);
+                            }
+                        } else {
+                            console.warn('⚠️ method3CatModel function not found');
+                        }
+                    });
+                    
+                    console.log(`✅ Method 3 completed: Processed ${buildingsProcessedCount} unique buildings with real hazard exposures`);
+                    
+                    // Additional debugging for Method 3 verification
+                    console.log(`🔍 Method 3 Verification Summary:`);
+                    console.log(`  - Total building rows in analysis: ${allBuildings.length}`);
+                    console.log(`  - Unique buildings (by EGID): ${buildingGroups.size}`);
+                    console.log(`  - Buildings processed by Method 3: ${buildingsProcessedCount}`);
+                    console.log(`  - Simulations per building: ${numSimulations}`);
+                    console.log(`  - Expected total Method 3 points: ${buildingsProcessedCount * numSimulations}`);
+                    console.log(`  - Actual Method 3 points generated: ${window.method3Results?.length || 0}`);
+                    
+                    // Check if the numbers match
+                    const expectedPoints = buildingsProcessedCount * numSimulations;
+                    const actualPoints = window.method3Results?.length || 0;
+                    if (expectedPoints === actualPoints) {
+                        console.log(`  ✅ Method 3 point count verification: PASSED`);
+                    } else {
+                        console.warn(`  ⚠️ Method 3 point count verification: FAILED (expected ${expectedPoints}, got ${actualPoints})`);
+                    }
+                }
+                // ================= END CAT MODEL METHOD 3 =================
+
+                
+                // ===============================================================================
+                // ================= CAT MODEL METHOD 4, 5 and 6 - MONTE CARLO SIMULATIONS ================
+                // ===============================================================================
+
+                console.log('🎲 Starting CAT Model Method 4, 5 and 6 Monte Carlo Analysis...');
+
+                // CAT Model - Method 4 Monte Carlo Simulations (Return Period & Hazard Intensity)
+                console.log('\n🎯 === CAT Model Method 4 Analysis ===');
+                
+                // Method 4 iterates through ALL buildings analyzed (not unique like Method 3)
+                // Each building row represents a specific return period and hazard intensity
+                if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
+                    const allBuildings = window.latestExtractionResults.buildingsAnalyzed;
+                    
+                    // Clear Method 4 results before starting new analysis
+                    window.method4Results = [];
+                    window.method4ResultsByLevel = {};
+                    console.log('🔄 Cleared Method 4 results for new analysis');
+                    
+                    console.log(`Processing Method 4 for ${allBuildings.length} building rows (including different return periods)...`);
+                    
+                    // Process each building row with Method 4
+                    allBuildings.forEach((building, index) => {
+                        const props = building.buildingProperties || {};
+                        const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
+                        
+                        // Try both locations for GKLAS (direct on building or in buildingProperties)
+                        const gklas = building.GKLAS || props.GKLAS;
+                        
+                        // Get hazard intensity directly from building object
+                        const hazardIntensity = building.intensity || 'aucune atteinte'; // default to no hazard
+                        
+                        // Extract return period from recurrence field
+                        let returnPeriod = 100; // default
+                        if (building.recurrence) {
+                            const match = String(building.recurrence).match(/\d+/);
+                            if (match) {
+                                returnPeriod = parseInt(match[0]);
+                            }
+                        }
+                        
+                        console.log(`Method 4 - Processing building ${index + 1}/${allBuildings.length} (Intensity: ${hazardIntensity}, Return period: ${returnPeriod}, GKLAS: ${gklas}, spatial prob: ${spatialProb})`);
+                        
+                        // Call Method 4 for this building row
+                        if (typeof window.method4CatModel === 'function') {
+                            console.log(`🔍 Calling Method 4 for building ${index + 1} with:`);
+                            console.log(`  - numSimulations: ${numSimulations} (type: ${typeof numSimulations})`);
+                            console.log(`  - hazardIntensity: ${hazardIntensity}`);
+                            console.log(`  - buildCost: ${buildCost}`);
+                            console.log(`  - spatialProb: ${spatialProb}`);
+                            
+                            const method4Result = window.method4CatModel(
+                                hazardType,
+                                buildCost,
+                                spatialProb,
+                                numSimulations,
+                                gklas,
+                                returnPeriod,
+                                hazardIntensity  // Pass intensity instead of danger level
+                            );
+                            
+                            if (method4Result) {
+                                console.log(`✅ Method 4 completed for building ${index + 1}: ${method4Result.meanDamage.toFixed(2)} CHF (${hazardIntensity} intensity)`);
+                                
+                                // Store Method 4 results on building object
+                                building.METHOD4_RESULTS = method4Result;
+                                building.METHOD4_MEAN_DAMAGE = method4Result?.meanDamage || 0;
+                                building.METHOD4_HAZARD_INTENSITY = hazardIntensity;
+                                building.METHOD4_RETURN_PERIOD = returnPeriod;
+                                
+                                // Store results by hazard intensity for visualization
+                                if (!window.method4ResultsByLevel) {
+                                    window.method4ResultsByLevel = {};
+                                }
+                                
+                                // Map hazard intensity to simple group names for consistency
+                                let intensityGroup = 'other';
+                                if (hazardIntensity === 'aucune atteinte' || !hazardIntensity) {
+                                    intensityGroup = 'no_hazard';
+                                } else if (hazardIntensity === 'faible') {
+                                    intensityGroup = 'low';
+                                } else if (hazardIntensity === 'moyenne') {
+                                    intensityGroup = 'mean';
+                                } else if (hazardIntensity === 'forte') {
+                                    intensityGroup = 'high';
+                                }
+                                
+                                if (!window.method4ResultsByLevel[intensityGroup]) {
+                                    window.method4ResultsByLevel[intensityGroup] = [];
+                                }
+                                window.method4ResultsByLevel[intensityGroup].push({
+                                    building: index + 1,
+                                    buildingId: props.GEBNR || building.id || index,
+                                    gklas: gklas,
+                                    returnPeriod: returnPeriod,
+                                    hazardIntensity: hazardIntensity,
+                                    meanDamage: method4Result.meanDamage,
+                                    results: method4Result.results
+                                });
+                                
+                                console.log(`🔍 Stored Method 4 results for building ${index + 1} in group ${intensityGroup}: ${method4Result.results.length} simulation points`);
+                            }
+                        } else {
+                            console.warn('⚠️ method4CatModel function not found');
+                        }
+                    });
+                    
+                    console.log('✅ Method 4 Monte Carlo analysis completed for all building rows');
+                    console.log('🔍 Method 4 Summary:');
+                    console.log(`  - Buildings processed: ${allBuildings.length}`);
+                    console.log(`  - Simulations per building: ${numSimulations}`);
+                    console.log(`  - Expected total points: ${allBuildings.length * numSimulations}`);
+                    console.log(`  - Actual global method4Results: ${window.method4Results ? window.method4Results.length : 0} total simulation points`);
+                    console.log('  - method4ResultsByLevel structure:', Object.keys(window.method4ResultsByLevel || {}).map(level => `${level}: ${window.method4ResultsByLevel[level].length} buildings`));
+                    
+                    // Detailed analysis by intensity level
+                    if (window.method4ResultsByLevel) {
+                        Object.keys(window.method4ResultsByLevel).forEach(level => {
+                            const buildings = window.method4ResultsByLevel[level];
+                            const totalPoints = buildings.reduce((sum, building) => sum + building.results.length, 0);
+                            console.log(`  - ${level}: ${buildings.length} buildings, ${totalPoints} total points`);
+                        });
+                    }
+                    
+                    // Update existing Method 3 graphs to include Method 4 data
+                    if (window.method3Results && window.method3Results.length > 0) {
+                        createCATModelVulnerabilityGraph(); // This will now include Method 4 points
+                        createMethod3ExceedanceGraph(); // This will now include Method 4 curves
+                    }
+                    
+                    // Create the new comparison graph
+                    createMethodsComparisonGraph();
+                }
+
+                // CAT Model - Method 5 Monte Carlo Simulations (Return Period Based)
+                console.log('\n🎯 === CAT Model Method 5 Analysis ===');
+                
+                // Method 5 iterates through ALL buildings analyzed (same as Method 4)
+                // Each building row represents a specific return period
+                if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
+                    const allBuildings = window.latestExtractionResults.buildingsAnalyzed;
+                    
+                    // Clear Method 5 & 6 results before starting new analysis
+                    window.method5Results = [];
+                    window.method5ResultsByPeriod = {};
+                    window.method6Results = [];
+                    window.method6ResultsByPeriod = {};
+                    console.log('🔄 Cleared Method 5 & 6 results for new analysis');
+                    
+                    console.log(`Processing Method 5 & 6 for ${allBuildings.length} building rows (return period + hazard level based)...`);
+                    
+                    // Process each building row with Method 5
+                    allBuildings.forEach((building, index) => {
+                        const props = building.buildingProperties || {};
+                        const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
+                        
+                        // Try both locations for GKLAS (direct on building or in buildingProperties)
+                        const gklas = building.GKLAS || props.GKLAS;
+                        
+                        // Get hazard intensity for Method 6 (same as Method 4)
+                        const hazardLevel = building.intensity || null; // Method 6 requires hazard level
+                        
+                        // Extract return period from recurrence field
+                        let returnPeriod = 100; // default
+                        if (building.recurrence) {
+                            const match = String(building.recurrence).match(/\d+/);
+                            if (match) {
+                                returnPeriod = parseInt(match[0]);
+                            }
+                        }
+                        
+                        console.log(`Method 5 & 6 - Processing building ${index + 1}/${allBuildings.length} (Return period: ${returnPeriod}, Hazard level: ${hazardLevel}, GKLAS: ${gklas}, spatial prob: ${spatialProb})`);
+                        
+                        // Call Method 5 & 6 for this building row
+                        if (typeof window.method5And6CatModel === 'function') {
+                            console.log(`🔍 Calling Method 5 & 6 for building ${index + 1} with:`);
+                            console.log(`  - numSimulations: ${numSimulations} (type: ${typeof numSimulations})`);
+                            console.log(`  - returnPeriod: ${returnPeriod}`);
+                            console.log(`  - hazardLevel: ${hazardLevel}`);
+                            console.log(`  - buildCost: ${buildCost}`);
+                            console.log(`  - spatialProb: ${spatialProb}`);
+                            
+                            const method5And6Result = window.method5And6CatModel(
+                                hazardType,
+                                buildCost,
+                                spatialProb,
+                                numSimulations,
+                                gklas,
+                                returnPeriod,
+                                hazardLevel  // Pass hazard level to enable Method 6
+                            );
+                            
+                            if (method5And6Result && method5And6Result.method5) {
+                                const method5Data = method5And6Result.method5;
+                                console.log(`✅ Method 5 completed for building ${index + 1}: ${method5Data.meanDamage.toFixed(2)} CHF (${returnPeriod} year return period)`);
+                                
+                                // Store Method 5 results on building object
+                                building.METHOD5_RESULTS = method5Data;
+                                building.METHOD5_MEAN_DAMAGE = method5Data?.meanDamage || 0;
+                                building.METHOD5_RETURN_PERIOD = returnPeriod;
+                                
+                                // Store results by return period for visualization
+                                if (!window.method5ResultsByPeriod) {
+                                    window.method5ResultsByPeriod = {};
+                                }
+                                
+                                // Group by return period
+                                const rpGroup = `rp_${returnPeriod}`;
+                                
+                                if (!window.method5ResultsByPeriod[rpGroup]) {
+                                    window.method5ResultsByPeriod[rpGroup] = [];
+                                }
+                                window.method5ResultsByPeriod[rpGroup].push({
+                                    building: index + 1,
+                                    buildingId: props.GEBNR || building.id || index,
+                                    gklas: gklas,
+                                    returnPeriod: returnPeriod,
+                                    meanDamage: method5Data.meanDamage,
+                                    results: method5Data.results
+                                });
+                                
+                                console.log(`🔍 Stored Method 5 results for building ${index + 1} in group ${rpGroup}: ${method5Data.results.length} simulation points`);
+                            }
+                            
+                            // Handle Method 6 results if available
+                            if (method5And6Result && method5And6Result.method6) {
+                                const method6Data = method5And6Result.method6;
+                                console.log(`✅ Method 6 completed for building ${index + 1}: ${method6Data.meanDamage.toFixed(2)} CHF (${returnPeriod} year return period, ${hazardLevel} hazard level)`);
+                                
+                                // Store Method 6 results on building object
+                                building.METHOD6_RESULTS = method6Data;
+                                building.METHOD6_MEAN_DAMAGE = method6Data?.meanDamage || 0;
+                                building.METHOD6_RETURN_PERIOD = returnPeriod;
+                                building.METHOD6_HAZARD_LEVEL = hazardLevel;
+                                
+                                // Store results by return period and hazard level for visualization
+                                if (!window.method6ResultsByPeriod) {
+                                    window.method6ResultsByPeriod = {};
+                                }
+                                
+                                // Group by return period and hazard level
+                                const rpHazardGroup = `rp_${returnPeriod}_${hazardLevel}`;
+                                
+                                if (!window.method6ResultsByPeriod[rpHazardGroup]) {
+                                    window.method6ResultsByPeriod[rpHazardGroup] = [];
+                                }
+                                window.method6ResultsByPeriod[rpHazardGroup].push({
+                                    building: index + 1,
+                                    buildingId: props.GEBNR || building.id || index,
+                                    gklas: gklas,
+                                    returnPeriod: returnPeriod,
+                                    hazardLevel: hazardLevel,
+                                    meanDamage: method6Data.meanDamage,
+                                    results: method6Data.results
+                                });
+                                
+                                console.log(`🔍 Stored Method 6 results for building ${index + 1} in group ${rpHazardGroup}: ${method6Data.results.length} simulation points`);
+                            }
+                        } else {
+                            console.warn('⚠️ method5And6CatModel function not found');
+                        }
+                    });
+                    
+                    console.log('✅ Method 5 & 6 Monte Carlo analysis completed for all building rows');
+                    console.log('🔍 Method 5 Summary:');
+                    console.log(`  - Buildings processed: ${allBuildings.length}`);
+                    console.log(`  - Simulations per building: ${numSimulations}`);
+                    console.log(`  - Expected total points: ${allBuildings.length * numSimulations}`);
+                    console.log(`  - Actual global method5Results: ${window.method5Results ? window.method5Results.length : 0} total simulation points`);
+                    console.log('  - method5ResultsByPeriod structure:', Object.keys(window.method5ResultsByPeriod || {}).map(level => `${level}: ${window.method5ResultsByPeriod[level].length} buildings`));
+                    
+                    console.log('🔍 Method 6 Summary:');
+                    console.log(`  - Actual global method6Results: ${window.method6Results ? window.method6Results.length : 0} total simulation points`);
+                    console.log('  - method6ResultsByPeriod structure:', Object.keys(window.method6ResultsByPeriod || {}).map(level => `${level}: ${window.method6ResultsByPeriod[level].length} buildings`));
+                    
+                    // Detailed analysis by return period level
+                    if (window.method5ResultsByPeriod) {
+                        Object.keys(window.method5ResultsByPeriod).forEach(level => {
+                            const buildings = window.method5ResultsByPeriod[level];
+                            const totalPoints = buildings.reduce((sum, building) => sum + building.results.length, 0);
+                            console.log(`  - ${level}: ${buildings.length} buildings, ${totalPoints} total points`);
+                        });
+                    }
+                    
+                    // Create/update graphs to include Method 5 & 6 data
+                    if (window.method5ResultsByPeriod) {
+                        console.log('🎯 Creating graphs with Method 5 data...');
+                        // Update exceedance graph to include Method 5 curves
+                        createMethod3ExceedanceGraph();
+                        // Update vulnerability graph
+                        createCATModelVulnerabilityGraph();
+                        // Update comparison graph
+                        createMethodsComparisonGraph();
+                    }
+                    
+                    if (window.method6ResultsByPeriod && Object.keys(window.method6ResultsByPeriod).length > 0) {
+                        console.log('🎯 Creating graphs with Method 6 data...');
+                        // Method 6 graphs will be integrated into the same visualization functions
+                        createMethod3ExceedanceGraph();
+                        createCATModelVulnerabilityGraph();
+                        createMethodsComparisonGraph();
+                    }
+                }
+
+                // execute CAT MODEL functions
                 
             });
         }
@@ -2005,11 +2499,19 @@ function initializeWorkflow() {
         const buildingsAnalyzed = extractionResults.buildingsAnalyzed || [];
         const hazardsInside = extractionResults.hazardsInside || [];
         
-        // Calculate statistics
+        // Calculate statistics - distinguish between unique buildings and building-hazard combinations
         const totalBuildings = buildingsInside.length;
-        const buildingsWithHazard = buildingsAnalyzed.length;
-        const buildingsNoHazard = totalBuildings - buildingsWithHazard;
-        const hazardCoverage = totalBuildings > 0 ? ((buildingsWithHazard / totalBuildings) * 100).toFixed(1) : 0;
+        const buildingHazardCombinations = buildingsAnalyzed.length;
+        
+        // Count unique buildings in buildingsAnalyzed by EGID
+        const uniqueBuildingsInAnalyzed = new Set();
+        buildingsAnalyzed.forEach(building => {
+            const egid = building.buildingProperties?.EGID || building.originalBuildingId || 'unknown';
+            uniqueBuildingsInAnalyzed.add(egid);
+        });
+        const uniqueBuildingsWithHazard = uniqueBuildingsInAnalyzed.size;
+        const buildingsNoHazard = totalBuildings - uniqueBuildingsWithHazard;
+        const hazardCoverage = totalBuildings > 0 ? ((uniqueBuildingsWithHazard / totalBuildings) * 100).toFixed(1) : 0;
         
         // Count by intensity
         const intensityCount = {};
@@ -2024,15 +2526,18 @@ function initializeWorkflow() {
                 <div class="col-md-6">
                     <h5>📊 Basic Statistics</h5>
                     <p><strong>Total Buildings in Polygon:</strong> ${totalBuildings}</p>
-                    <p><strong>Buildings with Hazard Exposure:</strong> ${buildingsWithHazard}</p>
+                    <p><strong>Unique Buildings with Hazard Exposure:</strong> ${uniqueBuildingsWithHazard}</p>
                     <p><strong>Buildings with No Hazard:</strong> ${buildingsNoHazard}</p>
                     <p><strong>Hazard Coverage:</strong> ${hazardCoverage}%</p>
                     <p><strong>Total Hazard Features:</strong> ${hazardsInside.length}</p>
+                    <hr>
+                    <p><small><strong>Building-Hazard Combinations:</strong> ${buildingHazardCombinations} entries</small></p>
+                    <p><small class="text-muted">Note: Buildings may have multiple hazard exposures, creating more combinations than unique buildings.</small></p>
                 </div>
                 <div class="col-md-6">
                     <h5>🚨 Intensity Distribution</h5>
                     ${Object.keys(intensityCount).map(intensity => 
-                        `<p><strong>${intensity}:</strong> ${intensityCount[intensity]} buildings</p>`
+                        `<p><strong>${intensity}:</strong> ${intensityCount[intensity]} building-hazard combinations</p>`
                     ).join('')}
                 </div>
             </div>
@@ -2069,8 +2574,21 @@ function initializeWorkflow() {
             return;
         }
         
-        // Prepare row data for AG Grid
-        const rowData = buildingsAnalyzed.map((building, index) => {
+        // Show ALL buildings analyzed (including "aucune_atteinte" for investigation)
+        const buildingsToShow = buildingsAnalyzed;
+        
+        console.log(`📊 Showing all ${buildingsToShow.length} buildings analyzed (including "aucune_atteinte" for investigation)`);
+        
+        // Count different intensity types for logging
+        const intensityCounts = {};
+        buildingsToShow.forEach(building => {
+            const intensity = building.intensity || building.hazardIntensity || 'Unknown';
+            intensityCounts[intensity] = (intensityCounts[intensity] || 0) + 1;
+        });
+        console.log(`📊 Intensity distribution:`, intensityCounts);
+        
+        // Prepare row data for AG Grid using all buildings
+        const rowData = buildingsToShow.map((building, index) => {
             // Extract temporal hazard probability with robust access
             let temporalHazardProbValue = 'N/A';
             
@@ -2222,14 +2740,14 @@ function initializeWorkflow() {
             // Try different ways to access the value
             if (building.TEMPORAL_HAZARD_PROB !== undefined && building.TEMPORAL_HAZARD_PROB !== null) {
                 temporalHazardProbValue = building.TEMPORAL_HAZARD_PROB;
-                console.log(`✅ AG Grid Row ${index + 1}: Found TEMPORAL_HAZARD_PROB = ${temporalHazardProbValue}`);
+                // console.log(`✅ AG Grid Row ${index + 1}: Found TEMPORAL_HAZARD_PROB = ${temporalHazardProbValue}`);
             } else if (building['TEMPORAL_HAZARD_PROB'] !== undefined && building['TEMPORAL_HAZARD_PROB'] !== null) {
                 temporalHazardProbValue = building['TEMPORAL_HAZARD_PROB'];
-                console.log(`✅ AG Grid Row ${index + 1}: Found via bracket notation = ${temporalHazardProbValue}`);
+                // console.log(`✅ AG Grid Row ${index + 1}: Found via bracket notation = ${temporalHazardProbValue}`);
             } else {
-                console.log(`❌ AG Grid Row ${index + 1}: TEMPORAL_HAZARD_PROB not found`);
-                console.log(`🔍 Available building keys:`, Object.keys(building));
-                console.log(`🔍 Building recurrence:`, building.recurrence);
+                // console.log(`❌ AG Grid Row ${index + 1}: TEMPORAL_HAZARD_PROB not found`);
+                // console.log(`🔍 Available building keys:`, Object.keys(building));
+                // console.log(`🔍 Building recurrence:`, building.recurrence);
                 
                 // Fallback: calculate on the fly
                 if (building?.recurrence && window.temporaHazardProbability && window.selectedHazard) {
@@ -2280,6 +2798,9 @@ function initializeWorkflow() {
             
             const rowObject = {
                 index: index + 1,
+                
+                // Building Identification
+                egid: building.buildingProperties?.EGID || 'N/A',
                 
                 // Location Information
                 canton: building.buildingProperties?.GDEKT || 'N/A',
@@ -2358,6 +2879,14 @@ function initializeWorkflow() {
                 headerName: 'Index',
                 field: 'index',
                 cellStyle: { fontWeight: 'bold' }
+            },
+            {
+                headerName: 'EGID',
+                field: 'egid',
+                width: 100,
+                pinned: 'left',
+                filter: 'agTextColumnFilter',
+                cellStyle: { fontWeight: 'bold', backgroundColor: '#f8f9fa' }
             },
             
             // Location Information
@@ -2941,6 +3470,891 @@ function initializeWorkflow() {
                 }
             }
         }, 100); // 100ms delay to ensure modal is rendered
+        
+        // Create Method 3 graphs
+        createCATModelVulnerabilityGraph();
+        createMethod3ExceedanceGraph();
+    }
+    
+    // Function to create Method 3 vulnerability curves graph
+    function createCATModelVulnerabilityGraph() {
+        setTimeout(() => {
+            const container = document.getElementById('method3-vulnerability-graph');
+            if (!container) {
+                console.warn('⚠️ Method 3 vulnerability graph container not found');
+                return;
+            }
+            
+            console.log('📊 Creating Method 3 vulnerability curves...');
+            
+            try {
+                // Check if vulnerability parameters are available
+                if (typeof rockVulnerabilityChanged === 'undefined' && typeof rockVulnerabilityDefaults === 'undefined') {
+                    container.innerHTML = '<div class="text-center p-4 text-warning"><h5>Vulnerability data not available</h5></div>';
+                    return;
+                }
+                
+                // Create intensity range for curves (0 to 1000 kJ)
+                const intensityRange = [];
+                for (let i = 0; i <= 1000; i += 5) {
+                    intensityRange.push(i);
+                }
+                
+                // Define colors for each class
+                const classColors = {
+                    class1: '#1f77b4', // blue
+                    class2: '#ff7f0e', // orange  
+                    class3: '#2ca02c', // green
+                    class4: '#d62728'  // red
+                };
+                
+                const traces = [];
+                
+                // Create vulnerability curves for each class (min, mean, max)
+                ['class1', 'class2', 'class3', 'class4'].forEach(classKey => {
+                    // Use rockVulnerabilityChanged (user-modified) or fallback to defaults
+                    let params = null;
+                    if (typeof rockVulnerabilityChanged !== 'undefined' && rockVulnerabilityChanged[classKey]) {
+                        params = rockVulnerabilityChanged[classKey];
+                    } else if (typeof rockVulnerabilityDefaults !== 'undefined' && rockVulnerabilityDefaults[classKey]) {
+                        params = rockVulnerabilityDefaults[classKey];
+                    }
+                    
+                    if (!params) return;
+                    const className = `Class ${classKey.replace('class', '')}`;
+                    
+                    // Calculate curves for min, mean, max using repartTriangle function
+                    const meanCurve = [];
+                    const minCurve = [];
+                    const maxCurve = [];
+                    
+                    intensityRange.forEach(intensity => {
+                        if (typeof repartTriangle === 'function') {
+                            meanCurve.push(repartTriangle(intensity, params.mean));
+                            minCurve.push(repartTriangle(intensity, params.min));
+                            maxCurve.push(repartTriangle(intensity, params.max));
+                        } else {
+                            // Fallback to reference points interpolation if repartTriangle not available
+                            meanCurve.push(0);
+                            minCurve.push(0);
+                            maxCurve.push(0);
+                        }
+                    });
+                    
+                    // Mean curve (solid line)
+                    traces.push({
+                        x: intensityRange,
+                        y: meanCurve,
+                        name: `${className} Mean`,
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: {
+                            color: classColors[classKey],
+                            width: 2
+                        },
+                        visible: classKey === 'class1' ? true : 'legendonly',
+                        legendgroup: classKey
+                    });
+                    
+                    // Min curve (dotted line)
+                    traces.push({
+                        x: intensityRange,
+                        y: minCurve,
+                        name: `${className} Min`,
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: {
+                            color: classColors[classKey],
+                            width: 2,
+                            dash: 'dot'
+                        },
+                        visible: classKey === 'class1' ? true : 'legendonly',
+                        legendgroup: classKey,
+                        showlegend: false
+                    });
+                    
+                    // Max curve (dashed line)
+                    traces.push({
+                        x: intensityRange,
+                        y: maxCurve,
+                        name: `${className} Max`,
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: {
+                            color: classColors[classKey],
+                            width: 2,
+                            dash: 'dash'
+                        },
+                        visible: classKey === 'class1' ? true : 'legendonly',
+                        legendgroup: classKey,
+                        showlegend: false
+                    });
+                    
+                    // Add reference points as scatter
+                    if (params.intensities && params.vulnerabilities) {
+                        traces.push({
+                            x: params.intensities,
+                            y: params.vulnerabilities,
+                            name: `${className} Points`,
+                            type: 'scatter',
+                            mode: 'markers',
+                            marker: {
+                                color: classColors[classKey],
+                                size: 8,
+                                symbol: 'circle-open'
+                            },
+                            visible: classKey === 'class1' ? true : 'legendonly',
+                            legendgroup: classKey,
+                            showlegend: false
+                        });
+                    }
+                });
+                
+                // Add Monte Carlo vulnerability points of method 3
+                if (window.method3Results && window.method3Results.length > 0) {
+                    const intensities = window.method3Results.map(r => r.intensity);
+                    const vulnerabilities = window.method3Results.map(r => r.vulnerability);
+                    
+                    traces.push({
+                        x: intensities,
+                        y: vulnerabilities,
+                        name: 'Method 3',
+                        type: 'scatter',
+                        mode: 'markers',
+                        marker: {
+                            color: '#3b8618ff', // Deep green
+                            size: 4,
+                            opacity: 0.7,
+                            symbol: 'circle'
+                        },
+                        visible: true
+                    });
+                }
+                
+                // Add Monte Carlo vulnerability points of method 4 (all hazard intensities combined)
+                if (window.method4ResultsByLevel) {
+                    console.log('🔍 Method 4 data structure:', window.method4ResultsByLevel);
+                    
+                    // Combine all Method 4 results from all hazard intensities  
+                    const allMethod4Results = [];
+                    
+                    Object.keys(window.method4ResultsByLevel).forEach(intensityLevel => {
+                        console.log(`🔍 Processing intensity level: ${intensityLevel}`, window.method4ResultsByLevel[intensityLevel]);
+                        
+                        if (window.method4ResultsByLevel[intensityLevel] && window.method4ResultsByLevel[intensityLevel].length > 0) {
+                            const levelResults = window.method4ResultsByLevel[intensityLevel].flatMap(building => building.results);
+                            console.log(`🔍 Level ${intensityLevel} results:`, levelResults.length);
+                            allMethod4Results.push(...levelResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Total Method 4 results: ${allMethod4Results.length}`);
+                    
+                    if (allMethod4Results.length > 0) {
+                        // Filter for non-zero intensity points (keep all of them)
+                        const nonZeroResults = allMethod4Results.filter(r => r.intensity > 0);
+                        console.log(`🔍 Method 4 non-zero intensity results: ${nonZeroResults.length} (out of ${allMethod4Results.length} total)`);
+                        
+                        // Use ALL non-zero results (no sampling to ensure complete visualization)
+                        console.log(`� Method 4 plotting ALL ${nonZeroResults.length} non-zero data points`);
+                        
+                        if (nonZeroResults.length > 0) {
+                            const intensities = nonZeroResults.map(r => r.intensity);
+                            const vulnerabilities = nonZeroResults.map(r => r.vulnerability);
+                            
+                            console.log('🔍 Method 4 intensities range:', Math.min(...intensities), 'to', Math.max(...intensities));
+                            console.log('🔍 Method 4 vulnerabilities range:', Math.min(...vulnerabilities), 'to', Math.max(...vulnerabilities));
+                            
+                            traces.push({
+                                x: intensities,
+                                y: vulnerabilities,
+                                name: 'Method 4',
+                                type: 'scatter',
+                                mode: 'markers',
+                                marker: {
+                                    color: '#ff7f0e', // Orange color
+                                    size: 3,
+                                    opacity: 0.6,
+                                    symbol: 'diamond'
+                                },
+                                visible: true
+                            });
+                        }
+                    }
+                }
+                
+                // Add Monte Carlo vulnerability points of method 5 (all return periods combined)
+                if (window.method5ResultsByPeriod) {
+                    console.log('🔍 Method 5 data structure:', window.method5ResultsByPeriod);
+                    
+                    // Combine all Method 5 results from all return periods
+                    const allMethod5Results = [];
+                    
+                    Object.keys(window.method5ResultsByPeriod).forEach(returnPeriod => {
+                        console.log(`🔍 Processing return period: ${returnPeriod}`, window.method5ResultsByPeriod[returnPeriod]);
+                        
+                        if (window.method5ResultsByPeriod[returnPeriod] && window.method5ResultsByPeriod[returnPeriod].length > 0) {
+                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => building.results);
+                            console.log(`🔍 Return period ${returnPeriod} results:`, periodResults.length);
+                            allMethod5Results.push(...periodResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Total Method 5 results: ${allMethod5Results.length}`);
+                    
+                    if (allMethod5Results.length > 0) {
+                        // Filter for non-zero intensity points
+                        const nonZeroResults = allMethod5Results.filter(r => r.intensity > 0);
+                        console.log(`🔍 Method 5 non-zero intensity results: ${nonZeroResults.length} (out of ${allMethod5Results.length} total)`);
+                        
+                        // Use ALL non-zero results for complete visualization
+                        console.log(`⭐ Method 5 plotting ALL ${nonZeroResults.length} non-zero data points`);
+                        
+                        if (nonZeroResults.length > 0) {
+                            const intensities = nonZeroResults.map(r => r.intensity);
+                            const vulnerabilities = nonZeroResults.map(r => r.vulnerability);
+                            
+                            console.log('🔍 Method 5 intensities range:', Math.min(...intensities), 'to', Math.max(...intensities));
+                            console.log('🔍 Method 5 vulnerabilities range:', Math.min(...vulnerabilities), 'to', Math.max(...vulnerabilities));
+                            
+                            traces.push({
+                                x: intensities,
+                                y: vulnerabilities,
+                                name: 'Method 5',
+                                type: 'scatter',
+                                mode: 'markers',
+                                marker: {
+                                    color: '#d62728', // Red color
+                                    size: 3,
+                                    opacity: 0.6,
+                                    symbol: 'triangle-up'
+                                },
+                                visible: true
+                            });
+                        }
+                    }
+                }
+                
+                // Add Monte Carlo vulnerability points of method 6 (all return periods and hazard levels combined)
+                if (window.method6ResultsByPeriod) {
+                    console.log('🔍 Method 6 data structure:', window.method6ResultsByPeriod);
+                    
+                    // Combine all Method 6 results from all return periods and hazard levels
+                    const allMethod6Results = [];
+                    
+                    Object.keys(window.method6ResultsByPeriod).forEach(periodHazardKey => {
+                        console.log(`🔍 Processing period-hazard group: ${periodHazardKey}`, window.method6ResultsByPeriod[periodHazardKey]);
+                        
+                        if (window.method6ResultsByPeriod[periodHazardKey] && window.method6ResultsByPeriod[periodHazardKey].length > 0) {
+                            const groupResults = window.method6ResultsByPeriod[periodHazardKey].flatMap(building => building.results);
+                            console.log(`🔍 Group ${periodHazardKey} results:`, groupResults.length);
+                            allMethod6Results.push(...groupResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Total Method 6 results: ${allMethod6Results.length}`);
+                    
+                    if (allMethod6Results.length > 0) {
+                        // Filter for non-zero intensity points
+                        const nonZeroResults = allMethod6Results.filter(r => r.intensity > 0);
+                        console.log(`🔍 Method 6 non-zero intensity results: ${nonZeroResults.length} (out of ${allMethod6Results.length} total)`);
+                        
+                        // Use ALL non-zero results for complete visualization
+                        console.log(`⭐ Method 6 plotting ALL ${nonZeroResults.length} non-zero data points`);
+                        
+                        if (nonZeroResults.length > 0) {
+                            const intensities = nonZeroResults.map(r => r.intensity);
+                            const vulnerabilities = nonZeroResults.map(r => r.vulnerability);
+                            
+                            console.log('🔍 Method 6 intensities range:', Math.min(...intensities), 'to', Math.max(...intensities));
+                            console.log('🔍 Method 6 vulnerabilities range:', Math.min(...vulnerabilities), 'to', Math.max(...vulnerabilities));
+                            
+                            traces.push({
+                                x: intensities,
+                                y: vulnerabilities,
+                                name: 'Method 6',
+                                type: 'scatter',
+                                mode: 'markers',
+                                marker: {
+                                    color: '#17becf', // Cyan color
+                                    size: 3,
+                                    opacity: 0.6,
+                                    symbol: 'triangle-down'
+                                },
+                                visible: true
+                            });
+                        }
+                    }
+                }
+
+                const layout = {
+                    title: 'Vulnerability - CAT Models',
+                    xaxis: {
+                        title: 'Intensity (Energy of impact KJ)',
+                        gridcolor: '#eee'
+                    },
+                    yaxis: {
+                        title: 'Vulnerability',
+                        range: [0, 1],
+                        gridcolor: '#eee'
+                    },
+                    legend: {
+                        orientation: 'h',
+                        y: -0.2,
+                        groupclick: 'togglegroup'
+                    },
+                    margin: { t: 60, b: 100, l: 60, r: 60 },
+                    plot_bgcolor: '#fafafa',
+                    height: 450
+                };
+                
+                Plotly.newPlot(container, traces, layout, {responsive: true});
+                console.log('✅ Method 3 vulnerability curves created');
+                
+            } catch (error) {
+                console.error('❌ Error creating Method 3 vulnerability curves:', error);
+                container.innerHTML = '<div class="text-center p-4 text-danger"><h5>Error creating vulnerability curves</h5></div>';
+            }
+        }, 200);
+    }
+    
+    // Function to create Method 3 damage exceedance curve
+    function createMethod3ExceedanceGraph() {
+        setTimeout(() => {
+            const container = document.getElementById('method3-exceedance-graph');
+            if (!container) {
+                console.warn('⚠️ Method 3 exceedance graph container not found');
+                return;
+            }
+            
+            console.log('📊 Creating Method 3 exceedance curve...');
+            console.log(`📊 Method 3 results array size: ${window.method3Results?.length || 0} points`);
+            
+            try {
+                // Check if Method 3 results are available
+                if (!window.method3Results || window.method3Results.length === 0) {
+                    container.innerHTML = '<div class="text-center p-4 text-warning"><h5>Method 3 results not available</h5><p>Run analysis first to generate Monte Carlo results</p></div>';
+                    return;
+                }
+                
+                // Sort damages in ascending order
+                const sortedResults = [...window.method3Results].sort((a, b) => a.damage - b.damage);
+                console.log(`📊 Sorted results for exceedance curve: ${sortedResults.length} points`);
+                
+                // Calculate exceedance probabilities
+                const damages = [];
+                const exceedanceProbs = [];
+                const returnPeriods = [];
+                
+                sortedResults.forEach((result, index) => {
+                    damages.push(result.damage);
+                    const exceedanceProb = 1 - (index / sortedResults.length);
+                    exceedanceProbs.push(exceedanceProb);
+                    const returnPeriod = exceedanceProb > 0 ? 1 / exceedanceProb : 1000000;
+                    returnPeriods.push(returnPeriod);
+                });
+                
+                // Create control for X-axis maximum (use reduce to avoid stack overflow with large arrays)
+                const maxDamageValue = damages.reduce((max, val) => Math.max(max, val), 0);
+                const controlsHtml = `
+                    <div style="margin-bottom: 10px;">
+                        <label for="max-damage-input" style="margin-right: 10px;">Max Damage (CHF):</label>
+                        <input type="number" id="max-damage-input" value="${Math.ceil(maxDamageValue)}" 
+                               style="width: 120px; padding: 2px 5px;" min="0" step="100">
+                        <button onclick="updateExceedanceGraph()" style="margin-left: 10px; padding: 2px 10px;">Update</button>
+                    </div>
+                `;
+                
+                const traces = [];
+                
+                // Method 3 trace
+                traces.push({
+                    x: damages,
+                    y: exceedanceProbs,
+                    name: 'Method 3',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {
+                        color: '#2ca02c',
+                        width: 3
+                    }
+                });
+                
+                // Method 4 trace (all danger levels combined)
+                let allDamages = [...damages]; // Start with Method 3 damages for range calculation
+                
+                if (window.method4ResultsByLevel) {
+                    // Combine all Method 4 results from all danger levels
+                    const allMethod4Results = [];
+                    
+                    Object.keys(window.method4ResultsByLevel).forEach(intensityLevel => {
+                        if (window.method4ResultsByLevel[intensityLevel] && window.method4ResultsByLevel[intensityLevel].length > 0) {
+                            const levelResults = window.method4ResultsByLevel[intensityLevel].flatMap(building => building.results);
+                            allMethod4Results.push(...levelResults);
+                        }
+                    });
+                    
+                    if (allMethod4Results.length > 0) {
+                        // Sort all Method 4 damages in ascending order
+                        const sortedMethod4Results = [...allMethod4Results].sort((a, b) => a.damage - b.damage);
+                        const method4Damages = sortedMethod4Results.map(r => r.damage);
+                        const method4ExceedanceProbs = sortedMethod4Results.map((_, index) => 1 - (index / sortedMethod4Results.length));
+                        
+                        // Add to all damages for range calculation
+                        allDamages = allDamages.concat(method4Damages);
+                        
+                        traces.push({
+                            x: method4Damages,
+                            y: method4ExceedanceProbs,
+                            name: `Method 4`,
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: {
+                                color: '#ff7f0e', // Orange
+                                width: 2
+                            }
+                        });
+                        
+                        // Store Method 4 data globally for update function
+                        window.method4ExceedanceData = { 
+                            damages: method4Damages, 
+                            exceedanceProbs: method4ExceedanceProbs, 
+                            sortedResults: sortedMethod4Results 
+                        };
+                    }
+                }
+                
+                // Method 5 trace (all return periods combined)
+                if (window.method5ResultsByPeriod) {
+                    // Combine all Method 5 results from all return periods
+                    const allMethod5Results = [];
+                    
+                    Object.keys(window.method5ResultsByPeriod).forEach(returnPeriod => {
+                        if (window.method5ResultsByPeriod[returnPeriod] && window.method5ResultsByPeriod[returnPeriod].length > 0) {
+                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => building.results);
+                            allMethod5Results.push(...periodResults);
+                        }
+                    });
+                    
+                    if (allMethod5Results.length > 0) {
+                        // Sort all Method 5 damages in ascending order
+                        const sortedMethod5Results = [...allMethod5Results].sort((a, b) => a.damage - b.damage);
+                        const method5Damages = sortedMethod5Results.map(r => r.damage);
+                        const method5ExceedanceProbs = sortedMethod5Results.map((_, index) => 1 - (index / sortedMethod5Results.length));
+                        
+                        // Add to all damages for range calculation
+                        allDamages = allDamages.concat(method5Damages);
+                        
+                        traces.push({
+                            x: method5Damages,
+                            y: method5ExceedanceProbs,
+                            name: `Method 5`,
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: {
+                                color: '#d62728', // Red
+                                width: 2
+                            }
+                        });
+                        
+                        // Store Method 5 data globally for update function
+                        window.method5ExceedanceData = { 
+                            damages: method5Damages, 
+                            exceedanceProbs: method5ExceedanceProbs, 
+                            sortedResults: sortedMethod5Results 
+                        };
+                    }
+                }
+                
+                // Method 6 trace (all return periods and hazard levels combined)
+                if (window.method6ResultsByPeriod) {
+                    // Combine all Method 6 results from all return periods and hazard levels
+                    const allMethod6Results = [];
+                    
+                    Object.keys(window.method6ResultsByPeriod).forEach(periodHazardKey => {
+                        if (window.method6ResultsByPeriod[periodHazardKey] && window.method6ResultsByPeriod[periodHazardKey].length > 0) {
+                            const groupResults = window.method6ResultsByPeriod[periodHazardKey].flatMap(building => building.results);
+                            allMethod6Results.push(...groupResults);
+                        }
+                    });
+                    
+                    if (allMethod6Results.length > 0) {
+                        // Sort all Method 6 damages in ascending order
+                        const sortedMethod6Results = [...allMethod6Results].sort((a, b) => a.damage - b.damage);
+                        const method6Damages = sortedMethod6Results.map(r => r.damage);
+                        const method6ExceedanceProbs = sortedMethod6Results.map((_, index) => 1 - (index / sortedMethod6Results.length));
+                        
+                        // Add to all damages for range calculation
+                        allDamages = allDamages.concat(method6Damages);
+                        
+                        traces.push({
+                            x: method6Damages,
+                            y: method6ExceedanceProbs,
+                            name: `Method 6`,
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: {
+                                color: '#17becf', // Cyan
+                                width: 2
+                            }
+                        });
+                        
+                        // Store Method 6 data globally for update function
+                        window.method6ExceedanceData = { 
+                            damages: method6Damages, 
+                            exceedanceProbs: method6ExceedanceProbs, 
+                            sortedResults: sortedMethod6Results 
+                        };
+                    }
+                }
+
+                // Use reduce to avoid stack overflow with large arrays
+                const maxDamage = allDamages.length > 0 ? allDamages.reduce((max, val) => Math.max(max, val), 0) : 1000;
+                
+                const layout = {
+                    title: `Damage Exceedance Probability - CAT Models`,
+                    xaxis: {
+                        title: 'Damage (CHF)',
+                        range: [0, maxDamage * 1.1],
+                        gridcolor: '#eee'
+                    },
+                    yaxis: {
+                        title: 'Exceedance Probability',
+                        range: [0, 1],
+                        gridcolor: '#eee'
+                    },
+                    margin: { t: 80, b: 60, l: 80, r: 60 },
+                    plot_bgcolor: '#fafafa',
+                    height: 450
+                };
+                
+                // Add controls and graph
+                container.innerHTML = controlsHtml + '<div id="exceedance-plot" style="width: 100%; height: 470px;"></div>';
+                
+                const plotContainer = document.getElementById('exceedance-plot');
+                Plotly.newPlot(plotContainer, traces, layout, {responsive: true});
+                
+                // Store data globally for update function
+                window.exceedanceData = { damages, exceedanceProbs, sortedResults };
+                
+                console.log('✅ Method 3 exceedance curve created');
+                
+            } catch (error) {
+                console.error('❌ Error creating Method 3 exceedance curve:', error);
+                container.innerHTML = '<div class="text-center p-4 text-danger"><h5>Error creating exceedance curve</h5></div>';
+            }
+        }, 300);
+    }
+    
+    // Global function to update exceedance graph with new X-axis range
+    window.updateExceedanceGraph = function() {
+        const maxDamageInput = document.getElementById('max-damage-input');
+        const plotContainer = document.getElementById('exceedance-plot');
+        
+        if (!maxDamageInput || !plotContainer || !window.exceedanceData) {
+            console.warn('Cannot update exceedance graph - missing elements');
+            return;
+        }
+        
+        // Use reduce to avoid stack overflow with large arrays
+        const fallbackMaxDamage = window.exceedanceData.damages.reduce((max, val) => Math.max(max, val), 0);
+        const maxDamage = parseFloat(maxDamageInput.value) || fallbackMaxDamage;
+        
+        const traces = [];
+        
+        // Method 3 trace
+        traces.push({
+            x: window.exceedanceData.damages,
+            y: window.exceedanceData.exceedanceProbs,
+            name: 'Method 3',
+            type: 'scatter',
+            mode: 'lines',
+            line: {
+                color: '#2ca02c',
+                width: 3
+            }
+        });
+        
+        // Method 4 trace (if available)
+        if (window.method4ExceedanceData) {
+            traces.push({
+                x: window.method4ExceedanceData.damages,
+                y: window.method4ExceedanceData.exceedanceProbs,
+                name: 'Method 4',
+                type: 'scatter',
+                mode: 'lines',
+                line: {
+                    color: '#ff7f0e', // Orange
+                    width: 2
+                }
+            });
+        }
+        
+        // Method 5 trace (if available)
+        if (window.method5ExceedanceData) {
+            traces.push({
+                x: window.method5ExceedanceData.damages,
+                y: window.method5ExceedanceData.exceedanceProbs,
+                name: 'Method 5',
+                type: 'scatter',
+                mode: 'lines',
+                line: {
+                    color: '#d62728', // Red
+                    width: 2
+                }
+            });
+        }
+        
+        // Method 6 trace (if available)
+        if (window.method6ExceedanceData) {
+            traces.push({
+                x: window.method6ExceedanceData.damages,
+                y: window.method6ExceedanceData.exceedanceProbs,
+                name: 'Method 6',
+                type: 'scatter',
+                mode: 'lines',
+                line: {
+                    color: '#17becf', // Cyan
+                    width: 2
+                }
+            });
+        }
+        
+        const layout = {
+            title: `Damage Exceedance Probability - CAT Models`,
+            xaxis: {
+                title: 'Damage (CHF)',
+                range: [0, maxDamage],
+                gridcolor: '#eee'
+            },
+            yaxis: {
+                title: 'Exceedance Probability',
+                range: [0, 1],
+                gridcolor: '#eee'
+            },
+            margin: { t: 80, b: 60, l: 80, r: 60 },
+            plot_bgcolor: '#fafafa',
+            height: 450
+        };
+        
+        Plotly.newPlot(plotContainer, traces, layout, {responsive: true});
+        console.log('✅ Exceedance graph updated with max damage:', maxDamage);
+    };
+
+    // ================= METHODS COMPARISON FUNCTION =================
+    
+    // Create methods comparison bar chart
+    function createMethodsComparisonGraph() {
+        setTimeout(() => {
+            const container = document.getElementById('methods-comparison-graph');
+            if (!container) {
+                console.warn('⚠️ Methods comparison graph container not found');
+                return;
+            }
+            
+            console.log('📊 Creating methods comparison chart...');
+            
+            try {
+                const traces = [];
+                const methods = [];
+                const meanDamages = [];
+                
+                // Calculate EconoMe and Literature totals from building analysis results (Methods 1 & 2)
+                if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
+                    const buildings = window.latestExtractionResults.buildingsAnalyzed;
+                    
+                    // Method 1: Calculate EconoMe total (sum of all building damages)
+                    let economeTotalDamage = 0;
+                    let economeValidCount = 0;
+                    
+                    buildings.forEach(building => {
+                        const damage = building.DAMAGE;
+                        if (damage !== 'N/A' && damage !== null && damage !== undefined && !isNaN(damage) && damage > 0) {
+                            economeTotalDamage += parseFloat(damage);
+                            economeValidCount++;
+                        }
+                    });
+                    
+                    if (economeValidCount > 0) {
+                        methods.push('Method 1<br>EconoMe Total');
+                        meanDamages.push(economeTotalDamage);
+                    }
+                    
+                    // Method 2: Calculate Literature total (sum of all building literature damages)
+                    let literatureTotalDamage = 0;
+                    let literatureValidCount = 0;
+                    
+                    buildings.forEach(building => {
+                        const damage = building.DAMAGE_LITERATURE;
+                        if (damage !== 'N/A' && damage !== null && damage !== undefined && !isNaN(damage) && damage > 0) {
+                            literatureTotalDamage += parseFloat(damage);
+                            literatureValidCount++;
+                        }
+                    });
+                    
+                    if (literatureValidCount > 0) {
+                        methods.push('Method 2<br>Literature Total');
+                        meanDamages.push(literatureTotalDamage);
+                    }
+                }
+                
+                // Method 3: CAT Model Monte Carlo mean damage
+                if (window.method3Results && window.method3Results.length > 0) {
+                    const method3Mean = window.method3Results.reduce((sum, r) => sum + r.damage, 0) / window.method3Results.length;
+                    methods.push('Method 3<br>CAT Model Mean');
+                    meanDamages.push(method3Mean);
+                }
+                
+                // Method 4: CAT Model Monte Carlo mean damage (combined from all hazard intensities)
+                if (window.method4ResultsByLevel) {
+                    console.log('🔍 Comparison: Method 4 data available:', window.method4ResultsByLevel);
+                    
+                    // Combine all Method 4 results from all hazard intensities
+                    const allMethod4Results = [];
+                    
+                    Object.keys(window.method4ResultsByLevel).forEach(intensityLevel => {
+                        if (window.method4ResultsByLevel[intensityLevel] && window.method4ResultsByLevel[intensityLevel].length > 0) {
+                            const levelResults = window.method4ResultsByLevel[intensityLevel].flatMap(building => building.results);
+                            console.log(`🔍 Comparison: Level ${intensityLevel} has ${levelResults.length} results`);
+                            allMethod4Results.push(...levelResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Comparison: Total Method 4 results: ${allMethod4Results.length}`);
+                    
+                    if (allMethod4Results.length > 0) {
+                        const method4Mean = allMethod4Results.reduce((sum, r) => sum + r.damage, 0) / allMethod4Results.length;
+                        console.log(`🔍 Comparison: Method 4 mean damage: ${method4Mean}`);
+                        methods.push('Method 4<br>CAT Model Mean');
+                        meanDamages.push(method4Mean);
+                    }
+                } else {
+                    console.log('🔍 Comparison: No Method 4 data available');
+                }
+                
+                // Method 5: CAT Model Monte Carlo mean damage (combined from all return periods)
+                if (window.method5ResultsByPeriod) {
+                    console.log('🔍 Comparison: Method 5 data available:', window.method5ResultsByPeriod);
+                    
+                    // Combine all Method 5 results from all return periods
+                    const allMethod5Results = [];
+                    
+                    Object.keys(window.method5ResultsByPeriod).forEach(returnPeriod => {
+                        if (window.method5ResultsByPeriod[returnPeriod] && window.method5ResultsByPeriod[returnPeriod].length > 0) {
+                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => building.results);
+                            console.log(`🔍 Comparison: Return period ${returnPeriod} has ${periodResults.length} results`);
+                            allMethod5Results.push(...periodResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Comparison: Total Method 5 results: ${allMethod5Results.length}`);
+                    
+                    if (allMethod5Results.length > 0) {
+                        const method5Mean = allMethod5Results.reduce((sum, r) => sum + r.damage, 0) / allMethod5Results.length;
+                        console.log(`🔍 Comparison: Method 5 mean damage: ${method5Mean}`);
+                        methods.push('Method 5<br>CAT Model Mean');
+                        meanDamages.push(method5Mean);
+                    }
+                } else {
+                    console.log('🔍 Comparison: No Method 5 data available');
+                }
+                
+                // Method 6: CAT Model Monte Carlo mean damage (combined from all return periods and hazard levels)
+                if (window.method6ResultsByPeriod) {
+                    console.log('🔍 Comparison: Method 6 data available:', window.method6ResultsByPeriod);
+                    
+                    // Combine all Method 6 results from all return periods and hazard levels
+                    const allMethod6Results = [];
+                    
+                    Object.keys(window.method6ResultsByPeriod).forEach(periodHazardKey => {
+                        if (window.method6ResultsByPeriod[periodHazardKey] && window.method6ResultsByPeriod[periodHazardKey].length > 0) {
+                            const groupResults = window.method6ResultsByPeriod[periodHazardKey].flatMap(building => building.results);
+                            console.log(`🔍 Comparison: Group ${periodHazardKey} has ${groupResults.length} results`);
+                            allMethod6Results.push(...groupResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Comparison: Total Method 6 results: ${allMethod6Results.length}`);
+                    
+                    if (allMethod6Results.length > 0) {
+                        const method6Mean = allMethod6Results.reduce((sum, r) => sum + r.damage, 0) / allMethod6Results.length;
+                        console.log(`🔍 Comparison: Method 6 mean damage: ${method6Mean}`);
+                        methods.push('Method 6<br>CAT Model Mean');
+                        meanDamages.push(method6Mean);
+                    }
+                } else {
+                    console.log('🔍 Comparison: No Method 6 data available');
+                }
+                
+                console.log('🔍 Comparison: Final methods:', methods);
+                console.log('🔍 Comparison: Final damages:', meanDamages);
+                
+                const trace = {
+                    x: methods,
+                    y: meanDamages,
+                    type: 'bar',
+                    marker: {
+                        color: ['#2ca02c', '#1f77b4', '#ff7f0e', '#d62728', '#9467bd', '#8c564b', '#17becf'],
+                        opacity: 0.8
+                    },
+                    text: meanDamages.map(val => `${val.toFixed(1)} CHF`),
+                    textposition: 'auto',
+                    width: Array(methods.length).fill(0.8)  // Set uniform bar width
+                };
+                
+                const layout = {
+                    title: 'CAT Model Methods: Mean Damage Comparison',
+                    xaxis: {
+                        title: 'Different Methods used for Damage Estimation',
+                        type: 'category',
+                        categoryorder: 'array',
+                        categoryarray: methods,
+                        tickangle: -45,
+                        automargin: true,
+                        range: [-0.5, methods.length - 0.5]  // Force full range usage
+                    },
+                    yaxis: {
+                        title: 'Mean Damage (CHF)'
+                    },
+                    margin: { t: 60, b: 120, l: 80, r: 60 },
+                    plot_bgcolor: '#fafafa',
+                    height: 450,
+                    bargap: 0.2,  // Slightly increased gap for better distribution
+                    bargroupgap: 0.1,
+                    width: null,  // Let it use full container width
+                    autosize: true  // Enable automatic sizing
+                };
+                
+                container.innerHTML = '<div id="comparison-plot" style="width: 100%; height: 470px;"></div>';
+                
+                const plotContainer = document.getElementById('comparison-plot');
+                
+                const config = {
+                    responsive: true, 
+                    displayModeBar: false,
+                    toImageButtonOptions: {
+                        format: 'png',
+                        filename: 'methods_comparison',
+                        height: 450,
+                        width: 1200,
+                        scale: 1
+                    }
+                };
+                
+                Plotly.newPlot(plotContainer, [trace], layout, config);
+                
+                // Force resize to ensure full width utilization
+                setTimeout(() => {
+                    Plotly.Plots.resize(plotContainer);
+                }, 100);
+                
+                console.log('✅ Methods comparison chart created');
+                
+            } catch (error) {
+                console.error('❌ Error creating methods comparison chart:', error);
+                container.innerHTML = '<div class="text-center p-4 text-danger"><h5>Error creating comparison chart</h5></div>';
+            }
+        }, 600);
     }
 
     // Function to highlight analyzed buildings on the map
@@ -3023,13 +4437,7 @@ function initializeWorkflow() {
     function populateCantons() {
         console.log('Populating cantons...');
         
-        // Extract unique cantons from the Swiss administrative data
-        // Based on the data structure found in suisse_admin_lim.js
-        // const cantons = ['Aargau','Appenzell Ausserrhoden','Appenzell Innerrhoden','Basel-Landschaft',
-        //     'Basel-Stadt','Bern','Fribourg','Genève','Glarus','Graubünden','Jura','Luzern',
-        //     'Neuchâtel','Nidwalden','Obwalden','Schaffhausen','Schwyz','Solothurn','St. Gallen',
-        //     'Thurgau','Ticino','Uri','Valais','Vaud','Zug','Zürich'].sort(); // Sort alphabetically 
-        
+        // Manual canton selection - only the 3 cantons you specified
         const cantons = ['Graubünden','Ticino','Valais'].sort(); // Sort alphabetically 
     
         const cantonSelect = document.getElementById('canton-select');
@@ -3167,6 +4575,7 @@ function removeOverlayByName(name) {
     } catch (e) { /* ignore */ }
 }
 
+// Function to add hazard GeoJSON to the map with appropriate styling and popups
 function addHazardToMap(geojson, hazardType = 'hazard') {
     // Normalize hazardType to a consistent token (accept 'debris-flow' or 'debris_flow')
     if (typeof hazardType === 'string') hazardType = hazardType.replace(/-/g, '_');
@@ -3275,7 +4684,7 @@ function addHazardToMap(geojson, hazardType = 'hazard') {
                         case 'forte':
                             color = '#d73027'; fillOpacity = 0.8; break;
                         case 'moyenne':
-                            color = '#fcf11bff'; fillOpacity = 0.6; break;
+                            color = '#F6D700'; fillOpacity = 0.6; break;
                         case 'faible':
                             color = '#4575b4'; fillOpacity = 0.4; break;
                         default:
@@ -3896,6 +5305,20 @@ function initializeDrawFunctionality() {
         // If it's a polygon, store it for analysis
         if (type === 'polygon') {
             console.log('📐 Polygon created for analysis');
+            
+            // Remove existing drawn polygon if any
+            if (window.drawnPolygon && window.map.hasLayer(window.drawnPolygon)) {
+                window.map.removeLayer(window.drawnPolygon);
+                window.fgp.removeLayer(window.drawnPolygon);
+                console.log('🗑️ Removed previous drawn polygon');
+            }
+            
+            // Remove existing analysis layers
+            if (typeof removeExistingAnalysisLayers === 'function') {
+                removeExistingAnalysisLayers();
+            }
+            
+            // Store new polygon
             window.drawnPolygon = layer;
 
             // Enable analysis button

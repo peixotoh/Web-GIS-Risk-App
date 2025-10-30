@@ -7,7 +7,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1241"]
+    classes: ["1241"],
+    vulnerability_class: 1
   },
   {
     id: "9",
@@ -17,17 +18,19 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1230"]
+    classes: ["1230"],
+    vulnerability_class: 1
   },
   {
     id: "64",
     description: "Autre type de bâtiment",
-    valeur_base: 1,
+    valeur_base: 180,
     unite: "CHF/m³",
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1212", "1274", "1271"]
+    classes: ["1212", "1274", "1271"],
+    vulnerability_class: 1
   },
   {
     id: "5",
@@ -37,7 +40,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1211"]
+    classes: ["1211"],
+    vulnerability_class: 1
   },
   {
     id: "6",
@@ -47,7 +51,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1251"]
+    classes: ["1251"],
+    vulnerability_class: 1
   },
   {
     id: "91",
@@ -57,7 +62,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0, moyenne: 0, forte: 0 },
     letalite: { faible: 0, moyenne: 0, forte: 0 },
-    classes: []
+    classes: [],
+    vulnerability_class: 1
   },
   {
     id: "12",
@@ -67,7 +73,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1272"]
+    classes: ["1272"],
+    vulnerability_class: 1
   },
   {
     id: "18",
@@ -77,7 +84,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1241", "1261", "1262", "1273"]
+    classes: ["1241", "1261", "1262", "1273"],
+    vulnerability_class: 1
   },
   {
     id: "88",
@@ -87,7 +95,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.3, moyenne: 0.6, forte: 1 },
     letalite: { faible: 0, moyenne: 0.5, forte: 1 },
-    classes: []
+    classes: [],
+    vulnerability_class: 1
   },
   {
     id: "10",
@@ -97,7 +106,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1263"]
+    classes: ["1263"],
+    vulnerability_class: 1
   },
   {
     id: "3",
@@ -105,9 +115,10 @@ window.buildings = [
     valeur_base: 80,
     unite: "CHF/m³",
     occupation: 0,
-    vulnerabilite: { faible: 0.8, moyenne: 0.9, forte: 0.9 },
+    vulnerabilite: { faible: 0.01, moyenne: 0.8, forte: 0.9 },
     letalite: { faible: 0, moyenne: 0.03, forte: 0.5 },
-    classes: ["1252", "1278"]
+    classes: ["1252", "1278"],
+    vulnerability_class: 3
   },
   {
     id: "11",
@@ -117,7 +128,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1264"]
+    classes: ["1264"],
+    vulnerability_class: 1
   },
   {
     id: "15",
@@ -127,7 +139,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1265"]
+    classes: ["1265"],
+    vulnerability_class: 4
   },
   {
     id: "63",
@@ -137,7 +150,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1265"]
+    classes: ["1265"],
+    vulnerability_class: 1
   },
   {
     id: "2",
@@ -147,7 +161,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.3, moyenne: 0.3, forte: 0.6 },
     letalite: { faible: 0, moyenne: 0.003, forte: 0.2 },
-    classes: ["1276"]
+    classes: ["1276"],
+    vulnerability_class: 2
   },
   {
     id: "4",
@@ -157,7 +172,8 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1242"]
+    classes: ["1242"],
+    vulnerability_class: 1
   },
   {
     id: "1",
@@ -167,7 +183,8 @@ window.buildings = [
     occupation: 2.24,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1110"]
+    classes: ["1110"],
+    vulnerability_class: 1
   },
   {
     id: "87",
@@ -177,6 +194,7 @@ window.buildings = [
     occupation: 2.24,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1110", "1121", "1122"]
+    classes: ["1110", "1121", "1122"],
+    vulnerability_class: 1
   }
 ];

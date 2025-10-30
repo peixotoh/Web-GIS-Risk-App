@@ -123,79 +123,79 @@ function temporaHazardProbability(subp, rp){
 
 // --- vulnerability function valdorisk - add also tyoe of building
 // - insert type of building
-function vulnValdorisk(int, hazType, categ){ 
-    if(categ == 1060){
-        if(hazType == 'rock_fall'){
-            if(int == 'high'){
-                return 0.6;
-            }
-            if (int == 'mean'){
-                return 0.3;
-            }
-            if (int == 'low'){
-                return 0.01;
-            }
-        }
-        if(hazType == 'debris_flow'){
-            if(int == 'high'){
-                return 1;
-            }
-            if (int == 'mean'){
-                return 0.3;
-            }
-            if (int == 'low'){
-                return 0.1;
-            }
-        }
-        if(hazType == 'flooding'){
-            if(int == 'high'){
-                return 0.5;
-            }
-            if (int == 'mean'){
-                return 0.3;
-            }
-            if (int == 'low'){
-                return 0.1;
-            }
-        } 
-    } else {
-        if(hazType == 'rock_fall'){
-            if(int == 'high'){
-                return 0.3;
-            }
-            if (int == 'mean'){
-                return 0.1;
-            }
-            if (int == 'low'){
-                return 0.01;
-            }
-        }
-        if(hazType == 'debris_flow'){
-            if(int == 'high'){
-                return 0.6;
-            }
-            if (int == 'mean'){
-                return 0.3;
-            }
-            if (int == 'low'){
-                return 0.1;
-            }
-        }
-        if(hazType == 'flooding'){
-            if(int == 'high'){
-                return 0.5;
-            }
-            if (int == 'mean'){
-                return 0.3;
-            }
-            if (int == 'low'){
-                return 0.1;
-            }
-        }  
-    }
+// function vulnValdorisk(int, hazType, categ){ 
+//     if(categ == 1060){
+//         if(hazType == 'rock_fall'){
+//             if(int == 'high'){
+//                 return 0.6;
+//             }
+//             if (int == 'mean'){
+//                 return 0.3;
+//             }
+//             if (int == 'low'){
+//                 return 0.01;
+//             }
+//         }
+//         if(hazType == 'debris_flow'){
+//             if(int == 'high'){
+//                 return 1;
+//             }
+//             if (int == 'mean'){
+//                 return 0.3;
+//             }
+//             if (int == 'low'){
+//                 return 0.1;
+//             }
+//         }
+//         if(hazType == 'flooding'){
+//             if(int == 'high'){
+//                 return 0.5;
+//             }
+//             if (int == 'mean'){
+//                 return 0.3;
+//             }
+//             if (int == 'low'){
+//                 return 0.1;
+//             }
+//         } 
+//     } else {
+//         if(hazType == 'rock_fall'){
+//             if(int == 'high'){
+//                 return 0.3;
+//             }
+//             if (int == 'mean'){
+//                 return 0.1;
+//             }
+//             if (int == 'low'){
+//                 return 0.01;
+//             }
+//         }
+//         if(hazType == 'debris_flow'){
+//             if(int == 'high'){
+//                 return 0.6;
+//             }
+//             if (int == 'mean'){
+//                 return 0.3;
+//             }
+//             if (int == 'low'){
+//                 return 0.1;
+//             }
+//         }
+//         if(hazType == 'flooding'){
+//             if(int == 'high'){
+//                 return 0.5;
+//             }
+//             if (int == 'mean'){
+//                 return 0.3;
+//             }
+//             if (int == 'low'){
+//                 return 0.1;
+//             }
+//         }  
+//     }
     
           
-}
+// }
 
 // --- hazard probability function valdorisk
 function spatialHazardProbValdorisk(rp, hazType){
@@ -383,17 +383,7 @@ function repartTriangle(x, par) {
     }
   }
   
-  // ---- vulnerability function
-  function vulnerability(x, pa, p_min, p_max) {
-    let p = {
-        c: repartTriangle(x, pa),
-        a: repartTriangle(x, p_min),
-        b: repartTriangle(x, p_max)
-    };
-    p.limit = initLimit(p);
-    let proba = Math.random();
-    return simulTriangle(proba, p);
-  }
+  
   
 // ==================== DONWLOAD AND UPLOAD VULNERABILITY VALUES ==================
 
@@ -447,17 +437,29 @@ function randomSpatialProb(hazType){
 // --- function to assign average spatial probability for each hazard type
 function randomSpatialProb(hazType){
     let spProb;
-    if(hazType == 'rock_fall'){
+    if(hazType == 'rock_fall' || hazType == 'rockfall' || hazType == 'rock-fall' || hazType == 'rockFall'){
         spProb = 0.03;
     }
-    if(hazType == 'debris_flow'){
+    if(hazType == 'debris_flow' || hazType == 'debrisflow' || hazType == 'debris-flow' || hazType == 'debrisFlow'){
         spProb = 0.7;
     }
-    if(hazType == 'flooding'){
+    if(hazType == 'flooding' || hazType == 'flood' || hazType == 'innondation'){
         spProb = 0.8;
     }
     return spProb;
 }
+
+// ---- vulnerability function
+  function vulnerability(x, pa, p_min, p_max) {
+    let p = {
+        c: repartTriangle(x, pa),
+        a: repartTriangle(x, p_min),
+        b: repartTriangle(x, p_max)
+    };
+    p.limit = initLimit(p);
+    let proba = Math.random();
+    return simulTriangle(proba, p);
+  }
 
 /* -- power law distribution to generate random frequence, calculate the intensity and
 vulnerability values n times. method 1 --- */
@@ -491,7 +493,8 @@ function method_3_4_RandFreqPowerLawMatrix(hazType, buildCost, spProb, dangerLev
         int_3 = Math.pow((frq / 291.03), (-1/1.984)); 
         //int_3 = Math.pow((frq / 0.6567), (-1/0.772)); 
 
-        // --- random intensity within intervals according to danger level (method 4)
+        // --- method 4 weighted values according to probability of accorrence 
+        // --- random intensity within intervals according to danger level
         if(dangerLevel == 'low'){
             // --- check interval of frequency to assign random intensity or 0 to intensity value
             if (randValue < 0.966){

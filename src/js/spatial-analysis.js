@@ -587,6 +587,57 @@ function createBuildingsAnalyzedData(buildingsInside) {
 }
 
 /**
+ * Remove existing analysis layers from map and layer control
+ */
+function removeExistingAnalysisLayers() {
+    console.log('🗑️ Removing existing analysis layers...');
+    
+    if (!window.map || !window.ctlLayers) {
+        console.warn('⚠️ Map or layer control not available');
+        return;
+    }
+    
+    try {
+        // Remove existing analysis layers if they exist
+        if (window.currentAnalysisLayers) {
+            // Remove from map
+            if (window.currentAnalysisLayers.polygonLayer && window.map.hasLayer(window.currentAnalysisLayers.polygonLayer)) {
+                window.map.removeLayer(window.currentAnalysisLayers.polygonLayer);
+            }
+            if (window.currentAnalysisLayers.buildingsInsideLayer && window.map.hasLayer(window.currentAnalysisLayers.buildingsInsideLayer)) {
+                window.map.removeLayer(window.currentAnalysisLayers.buildingsInsideLayer);
+            }
+            if (window.currentAnalysisLayers.buildingsAnalyzedLayer && window.map.hasLayer(window.currentAnalysisLayers.buildingsAnalyzedLayer)) {
+                window.map.removeLayer(window.currentAnalysisLayers.buildingsAnalyzedLayer);
+            }
+            
+            // Remove from layer control
+            if (window.ctlLayers._layers) {
+                Object.keys(window.ctlLayers._layers).forEach(layerId => {
+                    const layerObj = window.ctlLayers._layers[layerId];
+                    if (layerObj && layerObj.name) {
+                        // Remove analysis-related overlays
+                        if (layerObj.name.includes('Analysis Polygon') || 
+                            layerObj.name.includes('Buildings Inside Polygon') || 
+                            layerObj.name.includes('Buildings Analyzed')) {
+                            window.ctlLayers.removeLayer(layerObj.layer);
+                        }
+                    }
+                });
+            }
+            
+            console.log('✅ Existing analysis layers removed');
+        }
+        
+        // Clear global reference
+        window.currentAnalysisLayers = null;
+        
+    } catch (error) {
+        console.error('❌ Error removing existing analysis layers:', error);
+    }
+}
+
+/**
  * Add analysis layers to map and layer control
  * @param {Object} analysisLayers - Analysis layers object
  */
@@ -599,7 +650,10 @@ function addAnalysisLayersToMap(analysisLayers) {
     }
     
     try {
-        // Add layers to map
+        // Remove existing analysis layers first
+        removeExistingAnalysisLayers();
+        
+        // Add new layers to map
         analysisLayers.polygonLayer.addTo(window.map);
         analysisLayers.buildingsInsideLayer.addTo(window.map);
         analysisLayers.buildingsAnalyzedLayer.addTo(window.map);
@@ -690,5 +744,6 @@ function extractHazardsInsidePolygon(polygonGeoJSON, hazardLayer) {
 
 // Make functions available globally
 window.extractDataInsidePolygon = extractDataInsidePolygon;
+window.removeExistingAnalysisLayers = removeExistingAnalysisLayers;
 
 console.log('✅ Spatial analysis module (Step 1) loaded successfully');

@@ -82,6 +82,12 @@
   window.removeSelectionHighlight = window.removeSelectionHighlight || function(){};
   window.getCurrentAdministrativeSelection = window.getCurrentAdministrativeSelection || function(){ return null; };
 
+  // CAT Model results storage
+  window.method3Results = window.method3Results || [];
+  window.method4Results = window.method4Results || [];
+  window.method5Results = window.method5Results || [];
+  window.method6Results = window.method6Results || [];
+
   // Quick reference (comments):
   // Globals: map, buildingsLayer, buildingsData, swissAdminLayer, rockVulnerabilityDefaults,
   // userBuildingParameters, supabaseClient

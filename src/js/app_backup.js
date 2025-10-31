@@ -2502,14 +2502,6 @@ function initializeWorkflow() {
                 modal.style.display = 'none';
             };
         }
-
-        // Set up PDF export button handler
-        const pdfBtn = document.getElementById('export-results-pdf');
-        if (pdfBtn) {
-            pdfBtn.onclick = function() {
-                exportResultsToPDF(extractionResults);
-            };
-        }
         
         // Close modal when clicking outside
         modal.onclick = function(event) {
@@ -2517,232 +2509,6 @@ function initializeWorkflow() {
                 modal.style.display = 'none';
             }
         };
-    }
-
-    // Function to export analysis results to PDF - Enhanced version with visual content
-    function exportResultsToPDF(extractionResults) {
-        console.log('📄 Starting enhanced PDF export of analysis results...');
-        
-        // Show loading indicator
-        const pdfBtn = document.getElementById('export-results-pdf');
-        const originalText = pdfBtn.textContent;
-        pdfBtn.textContent = '⏳ Generating PDF...';
-        pdfBtn.disabled = true;
-
-        try {
-            // Check if required libraries are available
-            console.log('🔍 Checking for jsPDF and html2canvas availability...');
-            console.log('window.jsPDF:', typeof window.jsPDF);
-            console.log('window.html2canvas:', typeof window.html2canvas);
-            
-            let jsPDFConstructor = null;
-            
-            // Try different ways jsPDF might be available
-            if (typeof window.jsPDF !== 'undefined') {
-                jsPDFConstructor = window.jsPDF;
-                console.log('✅ Found window.jsPDF');
-            } else if (typeof window.jspdf !== 'undefined') {
-                jsPDFConstructor = window.jspdf.jsPDF;
-                console.log('✅ Found window.jspdf.jsPDF');
-            } else if (typeof jsPDF !== 'undefined') {
-                jsPDFConstructor = jsPDF;
-                console.log('✅ Found global jsPDF');
-            }
-            
-            if (!jsPDFConstructor) {
-                console.error('❌ jsPDF not found in any expected location');
-                alert('PDF export library not available. Please ensure jsPDF is loaded.');
-                return;
-            }
-
-            if (typeof window.html2canvas === 'undefined') {
-                console.error('❌ html2canvas not found');
-                alert('html2canvas library not available. Please ensure it is loaded.');
-                return;
-            }
-
-            // Get the modal content to capture
-            const modalContent = document.querySelector('#analysis-results-modal .modal-body');
-            if (!modalContent) {
-                alert('Modal content not found. Please ensure the analysis results modal is open.');
-                return;
-            }
-
-            console.log('📸 Capturing modal content...');
-
-            // Use html2canvas to capture the modal content
-            window.html2canvas(modalContent, {
-                scale: 2, // Higher resolution
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                width: modalContent.scrollWidth,
-                height: modalContent.scrollHeight,
-                scrollX: 0,
-                scrollY: 0
-            }).then(canvas => {
-                console.log('✅ Modal content captured successfully');
-                
-                // Create new jsPDF instance
-                const pdf = new jsPDFConstructor('p', 'mm', 'a4');
-                
-                // PDF dimensions
-                const pageWidth = pdf.internal.pageSize.getWidth();
-                const pageHeight = pdf.internal.pageSize.getHeight();
-                const margin = 10;
-                const contentWidth = pageWidth - 2 * margin;
-                const contentHeight = pageHeight - 2 * margin;
-                
-                // Add title page
-                pdf.setFontSize(18);
-                pdf.setFont('helvetica', 'bold');
-                pdf.text('Spatial Analysis Results Report', margin, 20);
-                
-                pdf.setFontSize(12);
-                pdf.setFont('helvetica', 'normal');
-                const now = new Date();
-                pdf.text(`Generated on: ${now.toLocaleString()}`, margin, 30);
-                
-                // Add summary info
-                if (extractionResults) {
-                    pdf.text(`Buildings Analyzed: ${extractionResults.buildingsAnalyzed?.length || 0}`, margin, 40);
-                    pdf.text(`Buildings Inside Polygon: ${extractionResults.buildingsInside?.length || 0}`, margin, 47);
-                    pdf.text(`Hazard Type: ${window.selectedHazard || 'Not specified'}`, margin, 54);
-                }
-                
-                // Calculate image dimensions to fit the page
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
-                const ratio = Math.min(contentWidth / (imgWidth * 0.264583), contentHeight / (imgHeight * 0.264583)); // Convert px to mm
-                
-                const finalWidth = imgWidth * 0.264583 * ratio;
-                const finalHeight = imgHeight * 0.264583 * ratio;
-                
-                // Add new page for the captured content
-                pdf.addPage();
-                
-                // Add the captured image
-                pdf.addImage(
-                    canvas.toDataURL('image/png'),
-                    'PNG',
-                    margin,
-                    margin,
-                    finalWidth,
-                    finalHeight
-                );
-                
-                // If the content is too tall, we might need multiple pages
-                let remainingHeight = finalHeight - contentHeight;
-                let pageOffset = contentHeight;
-                
-                while (remainingHeight > 0) {
-                    pdf.addPage();
-                    
-                    // Create a new canvas for the remaining content
-                    const remainingCanvas = document.createElement('canvas');
-                    const ctx = remainingCanvas.getContext('2d');
-                    remainingCanvas.width = canvas.width;
-                    remainingCanvas.height = Math.min(canvas.height - (pageOffset / 0.264583 / ratio), canvas.height);
-                    
-                    ctx.drawImage(
-                        canvas,
-                        0, pageOffset / 0.264583 / ratio,
-                        canvas.width, remainingCanvas.height,
-                        0, 0,
-                        canvas.width, remainingCanvas.height
-                    );
-                    
-                    const nextPageHeight = Math.min(remainingHeight, contentHeight);
-                    pdf.addImage(
-                        remainingCanvas.toDataURL('image/png'),
-                        'PNG',
-                        margin,
-                        margin,
-                        finalWidth,
-                        nextPageHeight
-                    );
-                    
-                    remainingHeight -= contentHeight;
-                    pageOffset += contentHeight;
-                }
-                
-                // Save the PDF
-                const filename = `spatial_analysis_results_${now.toISOString().split('T')[0]}.pdf`;
-                pdf.save(filename);
-                
-                console.log('✅ Enhanced PDF export completed successfully');
-                alert('PDF exported successfully with all tables and graphs!');
-                
-            }).catch(error => {
-                console.error('❌ Error capturing modal content:', error);
-                alert('Failed to capture modal content. Falling back to text-only PDF...');
-                
-                // Fallback to simple text-based PDF
-                createSimpleTextPDF(jsPDFConstructor, extractionResults);
-            });
-            
-        } catch (error) {
-            console.error('❌ PDF export failed:', error);
-            alert('PDF export failed. Please check the console for details.');
-        } finally {
-            // Restore button
-            if (pdfBtn) {
-                pdfBtn.textContent = originalText;
-                pdfBtn.disabled = false;
-            }
-        }
-    }
-
-    // Fallback function for simple text-based PDF
-    function createSimpleTextPDF(jsPDFConstructor, extractionResults) {
-        console.log('📄 Creating fallback text-based PDF...');
-        
-        const pdf = new jsPDFConstructor('p', 'mm', 'a4');
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const margin = 20;
-        let yPosition = margin;
-        
-        // Title
-        pdf.setFontSize(16);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Spatial Analysis Results Report', margin, yPosition);
-        yPosition += 10;
-        
-        // Date and time
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        const now = new Date();
-        pdf.text(`Generated on: ${now.toLocaleString()}`, margin, yPosition);
-        yPosition += 15;
-        
-        // Summary Statistics
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Summary Statistics', margin, yPosition);
-        yPosition += 8;
-        
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        
-        if (extractionResults) {
-            const summary = [
-                `Buildings Analyzed: ${extractionResults.buildingsAnalyzed?.length || 0}`,
-                `Buildings Inside Polygon: ${extractionResults.buildingsInside?.length || 0}`,
-                `Hazard Type: ${window.selectedHazard || 'Not specified'}`,
-                `Analysis Date: ${now.toLocaleDateString()}`
-            ];
-            
-            summary.forEach(line => {
-                pdf.text(line, margin, yPosition);
-                yPosition += 6;
-            });
-        }
-        
-        // Save the fallback PDF
-        const filename = `spatial_analysis_results_${new Date().toISOString().split('T')[0]}_simple.pdf`;
-        pdf.save(filename);
-        
-        console.log('✅ Fallback PDF created successfully');
     }
     
     // Function to populate analysis summary
@@ -4499,73 +4265,89 @@ function initializeWorkflow() {
                     }
                 }
                 
-                // Method 3: CAT Model Monte Carlo mean damage - SUM of building means (not average of all points)
-                if (window.method3Results && window.method3Results.length > 0 && window.latestExtractionResults?.buildingsAnalyzed) {
-                    // Get total damage by SUMMING the mean damage of each building
-                    const buildingsWithMethod3 = window.latestExtractionResults.buildingsAnalyzed.filter(building => 
-                        building.METHOD3_MEAN_DAMAGE !== undefined && building.METHOD3_MEAN_DAMAGE > 0
-                    );
-                    
-                    if (buildingsWithMethod3.length > 0) {
-                        const method3Total = buildingsWithMethod3.reduce((sum, building) => sum + building.METHOD3_MEAN_DAMAGE, 0);
-                        console.log(`🔍 Method 3: ${buildingsWithMethod3.length} buildings, total damage = ${method3Total.toFixed(2)} CHF`);
-                        methods.push('Method 3<br>CAT Model Mean');
-                        meanDamages.push(method3Total);
-                    }
+                // Method 3: CAT Model Monte Carlo mean damage
+                if (window.method3Results && window.method3Results.length > 0) {
+                    const method3Mean = window.method3Results.reduce((sum, r) => sum + r.damage, 0) / window.method3Results.length;
+                    methods.push('Method 3<br>CAT Model Mean');
+                    meanDamages.push(method3Mean);
                 }
                 
-                // Method 4: CAT Model Monte Carlo mean damage - SUM of building means (not average of all points)
-                if (window.method4ResultsByLevel && window.latestExtractionResults?.buildingsAnalyzed) {
+                // Method 4: CAT Model Monte Carlo mean damage (combined from all hazard intensities)
+                if (window.method4ResultsByLevel) {
                     console.log('🔍 Comparison: Method 4 data available:', window.method4ResultsByLevel);
                     
-                    // Get total damage by SUMMING the mean damage of each building
-                    const buildingsWithMethod4 = window.latestExtractionResults.buildingsAnalyzed.filter(building => 
-                        building.METHOD4_MEAN_DAMAGE !== undefined && building.METHOD4_MEAN_DAMAGE > 0
-                    );
+                    // Combine all Method 4 results from all hazard intensities
+                    const allMethod4Results = [];
                     
-                    if (buildingsWithMethod4.length > 0) {
-                        const method4Total = buildingsWithMethod4.reduce((sum, building) => sum + building.METHOD4_MEAN_DAMAGE, 0);
-                        console.log(`🔍 Method 4: ${buildingsWithMethod4.length} buildings, total damage = ${method4Total.toFixed(2)} CHF`);
+                    Object.keys(window.method4ResultsByLevel).forEach(intensityLevel => {
+                        if (window.method4ResultsByLevel[intensityLevel] && window.method4ResultsByLevel[intensityLevel].length > 0) {
+                            const levelResults = window.method4ResultsByLevel[intensityLevel].flatMap(building => building.results);
+                            console.log(`🔍 Comparison: Level ${intensityLevel} has ${levelResults.length} results`);
+                            allMethod4Results.push(...levelResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Comparison: Total Method 4 results: ${allMethod4Results.length}`);
+                    
+                    if (allMethod4Results.length > 0) {
+                        const method4Mean = allMethod4Results.reduce((sum, r) => sum + r.damage, 0) / allMethod4Results.length;
+                        console.log(`🔍 Comparison: Method 4 mean damage: ${method4Mean}`);
                         methods.push('Method 4<br>CAT Model Mean');
-                        meanDamages.push(method4Total);
+                        meanDamages.push(method4Mean);
                     }
                 } else {
                     console.log('🔍 Comparison: No Method 4 data available');
                 }
                 
-                // Method 5: CAT Model Monte Carlo mean damage - SUM of building means (not average of all points)
-                if (window.method5ResultsByPeriod && window.latestExtractionResults?.buildingsAnalyzed) {
+                // Method 5: CAT Model Monte Carlo mean damage (combined from all return periods)
+                if (window.method5ResultsByPeriod) {
                     console.log('🔍 Comparison: Method 5 data available:', window.method5ResultsByPeriod);
                     
-                    // Get total damage by SUMMING the mean damage of each building
-                    const buildingsWithMethod5 = window.latestExtractionResults.buildingsAnalyzed.filter(building => 
-                        building.METHOD5_MEAN_DAMAGE !== undefined && building.METHOD5_MEAN_DAMAGE > 0
-                    );
+                    // Combine all Method 5 results from all return periods
+                    const allMethod5Results = [];
                     
-                    if (buildingsWithMethod5.length > 0) {
-                        const method5Total = buildingsWithMethod5.reduce((sum, building) => sum + building.METHOD5_MEAN_DAMAGE, 0);
-                        console.log(`🔍 Method 5: ${buildingsWithMethod5.length} buildings, total damage = ${method5Total.toFixed(2)} CHF`);
+                    Object.keys(window.method5ResultsByPeriod).forEach(returnPeriod => {
+                        if (window.method5ResultsByPeriod[returnPeriod] && window.method5ResultsByPeriod[returnPeriod].length > 0) {
+                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => building.results);
+                            console.log(`🔍 Comparison: Return period ${returnPeriod} has ${periodResults.length} results`);
+                            allMethod5Results.push(...periodResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Comparison: Total Method 5 results: ${allMethod5Results.length}`);
+                    
+                    if (allMethod5Results.length > 0) {
+                        const method5Mean = allMethod5Results.reduce((sum, r) => sum + r.damage, 0) / allMethod5Results.length;
+                        console.log(`🔍 Comparison: Method 5 mean damage: ${method5Mean}`);
                         methods.push('Method 5<br>CAT Model Mean');
-                        meanDamages.push(method5Total);
+                        meanDamages.push(method5Mean);
                     }
                 } else {
                     console.log('🔍 Comparison: No Method 5 data available');
                 }
                 
-                // Method 6: CAT Model Monte Carlo mean damage - SUM of building means (not average of all points)
-                if (window.method6ResultsByPeriod && window.latestExtractionResults?.buildingsAnalyzed) {
+                // Method 6: CAT Model Monte Carlo mean damage (combined from all return periods and hazard levels)
+                if (window.method6ResultsByPeriod) {
                     console.log('🔍 Comparison: Method 6 data available:', window.method6ResultsByPeriod);
                     
-                    // Get total damage by SUMMING the mean damage of each building
-                    const buildingsWithMethod6 = window.latestExtractionResults.buildingsAnalyzed.filter(building => 
-                        building.METHOD6_MEAN_DAMAGE !== undefined && building.METHOD6_MEAN_DAMAGE > 0
-                    );
+                    // Combine all Method 6 results from all return periods and hazard levels
+                    const allMethod6Results = [];
                     
-                    if (buildingsWithMethod6.length > 0) {
-                        const method6Total = buildingsWithMethod6.reduce((sum, building) => sum + building.METHOD6_MEAN_DAMAGE, 0);
-                        console.log(`🔍 Method 6: ${buildingsWithMethod6.length} buildings, total damage = ${method6Total.toFixed(2)} CHF`);
+                    Object.keys(window.method6ResultsByPeriod).forEach(periodHazardKey => {
+                        if (window.method6ResultsByPeriod[periodHazardKey] && window.method6ResultsByPeriod[periodHazardKey].length > 0) {
+                            const groupResults = window.method6ResultsByPeriod[periodHazardKey].flatMap(building => building.results);
+                            console.log(`🔍 Comparison: Group ${periodHazardKey} has ${groupResults.length} results`);
+                            allMethod6Results.push(...groupResults);
+                        }
+                    });
+                    
+                    console.log(`🔍 Comparison: Total Method 6 results: ${allMethod6Results.length}`);
+                    
+                    if (allMethod6Results.length > 0) {
+                        const method6Mean = allMethod6Results.reduce((sum, r) => sum + r.damage, 0) / allMethod6Results.length;
+                        console.log(`🔍 Comparison: Method 6 mean damage: ${method6Mean}`);
                         methods.push('Method 6<br>CAT Model Mean');
-                        meanDamages.push(method6Total);
+                        meanDamages.push(method6Mean);
                     }
                 } else {
                     console.log('🔍 Comparison: No Method 6 data available');
@@ -5112,7 +4894,7 @@ function initializeWorkflow() {
                                 console.log('🔍 Unique hazardIntensity values found:', Array.from(intensityValues));
                                 
                                 allMethod4Results.forEach(result => {
-                                    if (result.intensity > 0 && result.hazardIntensity) {
+                                    if (result.frequency > 0 && result.intensity > 0 && result.hazardIntensity) {
                                         const level = String(result.hazardIntensity).toLowerCase();
                                         
                                         if (level.includes('faible') || level.includes('low') || level.includes('weak')) {

@@ -229,11 +229,12 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             // if (logDetail) console.log(`Random value: ${randValue}`);
             
             // Random frequency according to power law (method 3)
-            const frq = (randValue * (0.3 - 0.001)) + 0.001;
+            const frq = (randValue * (0.12 - 0.005)) + 0.005;
+            // const frq = (randValue * (0.3 - 0.001)) + 0.001;
             // if (logDetail) console.log(`Frequency: ${frq}`);
             
             // Intensity for method 3
-            const int_3 = Math.pow((frq / 291.03), (-1/1.984));
+            const int_3 = Math.pow((frq / 0.8304), (-1/0.8));
             // if (logDetail) console.log(`Intensity: ${int_3}`);
             
             // Vulnerability calculation using triangular distribution
@@ -396,6 +397,23 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     if (hazType === 'rock_fall' || hazType === 'rockfall') {
         console.log('🎲 Starting Method 4 Monte Carlo simulations...');
         
+        // Check if we should skip simulation based on hazard intensity
+        if (hazardIntensity === 'aucune_atteinte' || hazardIntensity === 'aucune atteinte' || hazardIntensity === 'no_hazard' || hazardIntensity === null || hazardIntensity === undefined) {
+            console.log(`⚠️ Method 4 - Skipping simulations due to no hazard exposure (${hazardIntensity})`);
+            
+            // Return empty results structure
+            return {
+                numSimulations: 0,
+                meanDamage: 0,
+                minDamage: 0,
+                maxDamage: 0,
+                stdDev: 0,
+                results: []
+            };
+        }
+        
+        console.log(`✅ Method 4 - Proceeding with simulations for hazard intensity: ${hazardIntensity}`);
+        
         for (let i = 0; i < numSimulations; i++) {
             const logDetail = false; // i < 5; // Only log details for first 5 simulations - COMMENTED OUT FOR CLEANER OUTPUT
             
@@ -406,37 +424,37 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             // if (logDetail) console.log(`Random value: ${randValue}`);
             
             // Random frequency according to power law (same as Method 3)
-            const frq = (randValue * (0.3 - 0.001)) + 0.001;
+            const frq = (randValue * (0.1 - 0.005)) + 0.005;
             // if (logDetail) console.log(`Frequency: ${frq}`);
             
             // Method 4: Assign intensity according to hazard level (using correct probability logic)
             let int_4 = 0;
             
             // Map hazard intensity to Method 4 logic - follows functions_2.js probability rules
-            if (hazardIntensity === 'aucune atteinte' || hazardIntensity === 'no_hazard' || hazardIntensity === null || hazardIntensity === undefined) {
-                // No hazard exposure - always zero intensity
-                int_4 = 0;
-            } else if (hazardIntensity === 'faible' || hazardIntensity === 'low') {
+            if (hazardIntensity === 'faible' || hazardIntensity === 'low') {
                 // Low danger level: 96.6% probability of getting intensity 30-100, otherwise 0
                 if (randValue < 0.966) {
-                    int_4 = (Math.random() * (100 - 30)) + 30;
+                    int_4 = (Math.random() * (30 - 10)) + 10;
                 } else {
                     int_4 = 0;
                 }
             } else if (hazardIntensity === 'moyenne' || hazardIntensity === 'mean') {
                 // Mean danger level: only 2.4% probability (0.966 to 0.99) of getting intensity 100-300
                 if (randValue < 0.99 && randValue >= 0.966) {
-                    int_4 = (Math.random() * (300 - 100)) + 100;
+                    int_4 = (Math.random() * (300 - 30)) + 30;
                 } else {
                     int_4 = 0;
                 }
             } else if (hazardIntensity === 'forte' || hazardIntensity === 'high') {
                 // High danger level: only 1% probability (>=0.99) of getting intensity 300-600
                 if (randValue >= 0.99) {
-                    int_4 = (Math.random() * (600 - 300)) + 300;
+                    int_4 = (Math.random() * (650 - 300)) + 300;
                 } else {
                     int_4 = 0;
                 }
+            } else {
+                // Default case - set to 0 for any other hazard intensity values
+                int_4 = 0;
             }
             
             // if (logDetail) console.log(`Method 4 Intensity (hazard level ${hazardIntensity}): ${int_4}`);
@@ -582,9 +600,9 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
         function getExpectedIntensityRange(level) {
             switch(level) {
                 case 'aucune atteinte': return '0';
-                case 'faible': return '30-100 kJ';
-                case 'moyenne': return '100-300 kJ';
-                case 'forte': return '300-600 kJ';
+                case 'faible': return '10-30 kJ';
+                case 'moyenne': return '30-300 kJ';
+                case 'forte': return '300-650 kJ';
                 default: return 'unknown';
             }
         }
@@ -630,7 +648,7 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
     }
     
     // Get vulnerability class from building data based on GKLAS
-    let vulnerabilityClass = 1; // default
+    let vulnerabilityClass = 0.5; // default
     console.log('🔍 Method 5 & 6 - Building class lookup - GKLAS received:', gklas, typeof gklas);
     
     if (typeof window.buildings !== 'undefined' && gklas) {
@@ -713,18 +731,18 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
             // Check return period and random value to determine frequency
             if (returnPeriod == 30) {
                 if (randValue < 0.966) {
-                    frq = (Math.random() * (0.3 - 0.033)) + 0.033;
+                    frq = (Math.random() * (0.12 - 0.033)) + 0.033;
                     // Calculate intensity based on power law distribution (using rockfall formula)
-                    int_5 = Math.pow((frq / 291.03), (-1/1.984));
+                    int_5 = Math.pow((frq / 0.8304), (-1/0.8));
                     
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                            int_6 = (Math.random() * (100 - 30)) + 30;
+                            int_6 = (Math.random() * (30 - 10)) + 10;
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
-                            int_6 = (Math.random() * (300 - 100)) + 100;
+                            int_6 = (Math.random() * (300 - 30)) + 30;
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
-                            int_6 = (Math.random() * (600 - 300)) + 300;
+                            int_6 = (Math.random() * (650 - 300)) + 300;
                         }
                     }
                 } else {
@@ -734,17 +752,18 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 }
             } else if (returnPeriod == 100) {
                 if (randValue < 0.99 && randValue >= 0.966) {
-                    frq = (Math.random() * (0.033 - 0.0033)) + 0.0033;
-                    int_5 = Math.pow((frq / 291.03), (-1/1.984));
+                    frq = (Math.random() * (0.03 - 0.0033)) + 0.0033;
+                    int_5 = Math.pow((frq / 0.8304), (-1/0.8));
+                    // int_5 = Math.pow((frq / 291.03), (-1/1.984));
                     
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                            int_6 = (Math.random() * (100 - 30)) + 30;
+                            int_6 = (Math.random() * (30 - 10)) + 10;
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
-                            int_6 = (Math.random() * (300 - 100)) + 100;
+                            int_6 = (Math.random() * (300 - 30)) + 30;
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
-                            int_6 = (Math.random() * (600 - 300)) + 300;
+                            int_6 = (Math.random() * (650 - 300)) + 300;
                         }
                     }
                 } else {
@@ -754,17 +773,17 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 }
             } else if (returnPeriod == 300) {
                 if (randValue >= 0.99) {
-                    frq = (Math.random() * (0.0033 - 0.00086)) + 0.00086;
-                    int_5 = Math.pow((frq / 291.03), (-1/1.984)); 
+                    frq = (Math.random() * (0.0033 - 0.005)) + 0.005;
+                    int_5 = Math.pow((frq / 0.8304), (-1/0.8));
                     
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                            int_6 = (Math.random() * (100 - 30)) + 30;
+                            int_6 = (Math.random() * (30 - 10)) + 10;
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
-                            int_6 = (Math.random() * (300 - 100)) + 100;
+                            int_6 = (Math.random() * (300 - 30)) + 30;
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
-                            int_6 = (Math.random() * (600 - 300)) + 300;
+                            int_6 = (Math.random() * (650 - 300)) + 300;
                         }
                     }
                 } else {
@@ -772,22 +791,23 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                     int_5 = 0;
                     int_6 = 0;
                 }
-            } else {
-                // Default case for other return periods
-                frq = (Math.random() * (0.3 - 0.001)) + 0.001;
-                int_5 = Math.pow((frq / 291.03), (-1/1.984));
+            } 
+            // else {
+            //     // Default case for other return periods
+            //     frq = (Math.random() * (0.12 - 0.005)) + 0.005;
+            //     int_5 = Math.pow((frq / 291.03), (-1/1.984));
                 
-                // Method 6: Check hazard level and calculate intensity
-                if (hazardLevel) {
-                    if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                        int_6 = (Math.random() * (100 - 30)) + 30;
-                    } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
-                        int_6 = (Math.random() * (300 - 100)) + 100;
-                    } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
-                        int_6 = (Math.random() * (600 - 300)) + 300;
-                    }
-                }
-            }
+            //     // Method 6: Check hazard level and calculate intensity
+            //     if (hazardLevel) {
+            //         if (hazardLevel === 'low' || hazardLevel === 'faible') {
+            //             int_6 = (Math.random() * (100 - 30)) + 30;
+            //         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
+            //             int_6 = (Math.random() * (300 - 100)) + 100;
+            //         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
+            //             int_6 = (Math.random() * (600 - 300)) + 300;
+            //         }
+            //     }
+            // }
             
             // Vulnerability calculation for Method 5
             let vuln_5;

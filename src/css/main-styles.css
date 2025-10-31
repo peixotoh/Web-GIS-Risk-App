@@ -711,6 +711,12 @@ hr {
     z-index:3;
     padding-bottom:8px;
 }
+
+.modal-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 .modal-separator {
     margin-top:8px;
 }

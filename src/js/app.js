@@ -2,34 +2,43 @@
 
 // console.log('📄 Simple app.js loading...');
 
-// ------------------ Global variables (initialized at file top) ------------------
-// Keep global/window-scoped state together here so they're easy to find.
+// ==================== GLOBAL STATE MANAGEMENT - MODULAR ARCHITECTURE ====================
+// Centralized global variable initialization for the modular application
+
+// Core Map Variables
 if (typeof window.map === 'undefined') window.map = null;
-// Canonical hazard variable; per-hazard custom layers removed
 if (typeof window.hazardLayer === 'undefined') window.hazardLayer = null;
-if (typeof window.drawnPolygon === 'undefined') window.drawnPolygon = null;
-if (typeof window.selectedLocation === 'undefined') window.selectedLocation = null;
-if (typeof window.selectedHazard === 'undefined') window.selectedHazard = null;
-if (typeof window.buildingsEnabled === 'undefined') window.buildingsEnabled = false;
-if (typeof window.currentBBox === 'undefined') window.currentBBox = null;
-if (typeof window.fgp === 'undefined') window.fgp = null;
-if (typeof window.fgp1 === 'undefined') window.fgp1 = null;
 if (typeof window.drawControl === 'undefined') window.drawControl = null;
 if (typeof window.ctlLayers === 'undefined') window.ctlLayers = null;
 if (typeof window.swissAdminLayer === 'undefined') window.swissAdminLayer = null;
-// Ensure buildings variables are present
-// Single buildings variables used across all flows
-if (typeof window.buildingsLayer === 'undefined') window.buildingsLayer = null;
-if (typeof window.buildingsData === 'undefined') window.buildingsData = null;
-// Spatial analysis variables
-if (typeof window.latestAnalysisResults === 'undefined') window.latestAnalysisResults = null;
-if (typeof window.latestExtractionResults === 'undefined') window.latestExtractionResults = null;
-if (typeof window.analysisHighlightLayer === 'undefined') window.analysisHighlightLayer = null;
-if (typeof window.currentAnalysisLayers === 'undefined') window.currentAnalysisLayers = null;
-// Expose common building functions here for quick reference (overwritten by modules)
-window.loadBuildingsFromSupabase = window.loadBuildingsFromSupabase || function() { console.warn('loadBuildingsFromSupabase not initialized'); };
-window.removeBuildingsFromMap = window.removeBuildingsFromMap || function() { console.warn('removeBuildingsFromMap not initialized'); };
-// ---------------------------------------------------------------------------------
+
+// Application State Variables
+if (typeof window.selectedLocation === 'undefined') window.selectedLocation = null;
+if (typeof window.selectedHazard === 'undefined') window.selectedHazard = 'rockfall';
+if (typeof window.buildingsEnabled === 'undefined') window.buildingsEnabled = false;
+if (typeof window.currentBBox === 'undefined') window.currentBBox = null;
+if (typeof window.drawnPolygon === 'undefined') window.drawnPolygon = null;
+
+// Module Data Variables (managed by respective modules)
+if (typeof window.buildingsLayer === 'undefined') window.buildingsLayer = null;     // → building-management.js
+if (typeof window.buildingsData === 'undefined') window.buildingsData = null;      // → building-management.js
+if (typeof window.latestAnalysisResults === 'undefined') window.latestAnalysisResults = null;      // → analysis-visualization.js
+if (typeof window.latestExtractionResults === 'undefined') window.latestExtractionResults = null;  // → spatial-analysis.js
+if (typeof window.analysisHighlightLayer === 'undefined') window.analysisHighlightLayer = null;    // → analysis-visualization.js
+if (typeof window.currentAnalysisLayers === 'undefined') window.currentAnalysisLayers = null;      // → spatial-analysis.js
+
+// Legacy Map Variables (for compatibility)
+if (typeof window.fgp === 'undefined') window.fgp = null;
+if (typeof window.fgp1 === 'undefined') window.fgp1 = null;
+
+// Module Function Placeholders (overwritten by respective modules)
+window.loadBuildingsFromSupabase = window.loadBuildingsFromSupabase || function() { 
+    console.warn('⚠️ loadBuildingsFromSupabase not loaded - building-management.js required'); 
+};
+window.removeBuildingsFromMap = window.removeBuildingsFromMap || function() { 
+    console.warn('⚠️ removeBuildingsFromMap not loaded - building-management.js required'); 
+};
+// ==================================================================================
 
 // Reset map functionality
 function initializeResetButton() {
@@ -200,23 +209,19 @@ function initializeWorkflow() {
     let buildingsEnabled = false;
     let drawnPolygons = [];
     
-    // Initialize location dropdowns
+    // ============================
+    // MODULAR INITIALIZATION SEQUENCE
+    // ============================
+    
+    // Core application controls
     initializeLocationControls();
-    
-    // Initialize hazard toggles  
     initializeHazardToggles();
-    
-    // Initialize data source controls
     initializeDataSourceControls();
     
-    // Initialize building button
-    initializeBuildingButton();
-    
-    // Initialize vulnerability controls
-    initializeVulnerabilityControls();
-    
-    // Initialize analysis controls
-    initializeAnalysisControls();
+    // Modular components (delegated to respective modules)
+    initializeBuildingButton();      // → building-management.js
+    initializeVulnerabilityControls(); // → vulnerability.js 
+    initializeAnalysisControls();    // → analysis-visualization.js
     
     // Location controls functionality
     function initializeLocationControls() {
@@ -485,973 +490,32 @@ function initializeWorkflow() {
             return Array.from(hazardToggles).some(toggle => toggle.checked);
         }
         
-        // Function to process uploaded custom data file
-        function processCustomDataFile(file, inputType) {
-            console.log('📁 Processing custom data file:', file.name, 'type:', inputType);
-            // Check file type
-            if (!file.name.toLowerCase().endsWith('.geojson') && !file.name.toLowerCase().endsWith('.json')) {
-                alert('⚠️ Please upload a GeoJSON file (.geojson or .json)');
-                return;
-            }
-            // Determine input type (hazard or building)
-            // Prefer explicit inputType param from onchange handlers
-            let isBuildingUpload = (inputType === 'building');
-            if (!isBuildingUpload && inputType === 'hazard') isBuildingUpload = false;
-            // Fallback: try to infer from file input name
-            if (isBuildingUpload === false && (file.name || '').toLowerCase().includes('build')) {
-                // weak inference if filename contains 'build'
-                isBuildingUpload = true;
-            }
-            // For buildings, no hazard selection required
-            if (!isBuildingUpload) {
-                const selectedHazard = getSelectedHazardType();
-                if (!selectedHazard) {
-                    alert('⚠️ Please select a hazard type first');
-                    return;
-                }
-            }
-            // Show loading feedback
-            console.log('⏳ Reading file...');
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    console.log('⏳ Parsing GeoJSON...');
-                    const geojsonData = JSON.parse(e.target.result);
-                    // Validate GeoJSON structure
-                    if (!geojsonData.type || geojsonData.type !== 'FeatureCollection') {
-                        alert('⚠️ Invalid GeoJSON format. Expected FeatureCollection.');
-                        return;
-                    }
-                    if (!geojsonData.features || geojsonData.features.length === 0) {
-                        alert('⚠️ No features found in the GeoJSON file.');
-                        return;
-                    }
-                    if (isBuildingUpload) {
-                        console.log(`✅ Loaded ${geojsonData.features?.length || 0} custom building features`);
-                        setTimeout(() => {
-                            try {
-                                loadCustomBuildingsDataToMap(geojsonData);
-                            } catch (error) {
-                                console.error('❌ Error loading custom buildings data to map:', error);
-                                alert('⚠️ Error loading buildings data to map. Please check the console for details.');
-                            }
-                        }, 100);
-                    } else {
-                        const selectedHazard = getSelectedHazardType();
-                        console.log(`✅ Loaded ${geojsonData.features?.length || 0} features for ${selectedHazard}`);
-                        setTimeout(() => {
-                            try {
-                                loadCustomHazardDataToMap(geojsonData, selectedHazard);
-                            } catch (error) {
-                                console.error('❌ Error loading custom hazard data to map:', error);
-                                alert('⚠️ Error loading hazard data to map. Please check the console for details.');
-                            }
-                        }, 100);
-                    }
-                } catch (error) {
-                    console.error('❌ Error parsing GeoJSON file:', error);
-                    alert('⚠️ Error parsing GeoJSON file. Please check the file format.');
-                }
-            };
-            reader.onerror = function(error) {
-                console.error('❌ Error reading file:', error);
-                alert('⚠️ Error reading file. Please try again.');
-            };
-            reader.readAsText(file);
-        }
-        
-        // Function to get selected hazard type
-        function getSelectedHazardType() {
-            const hazardToggles = document.querySelectorAll('input[name="hazard-type"]');
-            for (let toggle of hazardToggles) {
-                if (toggle.checked) {
-                    return toggle.value;
-                }
-            }
-            return null;
-        }
-        window.getSelectedHazardType = getSelectedHazardType;
-        
-        // Function to load custom data to map
-        // Function to load custom hazard data to map
-        function loadCustomHazardDataToMap(geojsonData, hazardType) {
-            console.log(`🗺️ Loading custom ${hazardType} data to map...`);
-            try {
-                // Remove existing hazard layers first
-                // Ensure any previous hazard layer is removed
-                removeHazardFromMap();
-                // Ensure a single canonical hazard layer is removed
-                removeHazardFromMap();
-                // Detect coordinate system and transform if needed
-                console.log('⏳ Detecting and transforming coordinates...');
-                const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
-                // Check if transformation was successful
-                if (!transformedGeoJSON) {
-                    console.error('❌ Coordinate transformation failed');
-                    alert('⚠️ Failed to process coordinates. Please check the coordinate system.');
-                    return;
-                }
-                if (!transformedGeoJSON.features || transformedGeoJSON.features.length === 0) {
-                    console.error('❌ No features after transformation');
-                    alert('⚠️ No valid features found after coordinate processing.');
-                    return;
-                }
-                console.log('⏳ Creating Leaflet layer...');
-                // Create custom layer using existing styling patterns
-                const customLayer = L.geoJSON(transformedGeoJSON, {
-                    style: function(feature) {
-                        try {
-                            // Use classe_d_intensites for styling polygons
-                            let intensityRaw = feature.properties.classe_d_intensites || feature.properties.intensity_ || feature.properties.intensity || '';
-                            if (typeof intensityRaw !== 'string') intensityRaw = '';
-                            const intensity = intensityRaw.trim().toLowerCase();
-                            let color, fillOpacity;
-                            switch(intensity) {
-                                case 'forte':
-                                case 'high':
-                                    color = '#d73027';
-                                    fillOpacity = 0.8;
-                                    break;
-                                case 'moyenne':
-                                case 'medium':
-                                case 'mean':
-                                    color = '#fcf11bff';
-                                    fillOpacity = 0.6;
-                                    break;
-                                case 'faible':
-                                case 'low':
-                                    color = '#4575b4';
-                                    fillOpacity = 0.4;
-                                    break;
-                                default:
-                                    color = '#999999';
-                                    fillOpacity = 0.3;
-                            }
-                            return {
-                                color: color,
-                                weight: 1,
-                                opacity: 1,
-                                fillColor: color,
-                                fillOpacity: fillOpacity
-                            };
-                        } catch (styleError) {
-                            console.warn('⚠️ Error in styling feature:', styleError);
-                            // Return default style
-                            return {
-                                color: '#999999',
-                                weight: 1,
-                                opacity: 1,
-                                fillColor: '#999999',
-                                fillOpacity: 0.3
-                            };
-                        }
-                    },
-                    onEachFeature: function(feature, layer) {
-                        try {
-                            // Create popup with available properties
-                            const props = feature.properties || {};
-                            let popupContent = `<div style="font-size: 12px;"><h4>🪨 Custom Hazard Data</h4>`;
-                            // Display intensity if available
-                            if (props.classe_d_intensites || props.intensity_ || props.intensity) {
-                                popupContent += `<p><strong>Intensity:</strong> ${props.classe_d_intensites || props.intensity_ || props.intensity}</p>`;
-                            }
-                            // Display other available properties
-                            Object.keys(props).forEach(key => {
-                                if (key !== 'classe_d_intensites' && key !== 'intensity_' && key !== 'intensity' &&
-                                    props[key] !== null && props[key] !== undefined && props[key] !== '') {
-                                    popupContent += `<p><strong>${key.replace('_', ' ')}:</strong> ${props[key]}</p>`;
-                                }
-                            });
-                            popupContent += '</div>';
-                            layer.bindPopup(popupContent);
-                        } catch (popupError) {
-                            console.warn('⚠️ Error creating popup for feature:', popupError);
-                            layer.bindPopup(`<div style="font-size: 12px;"><h4>🪨 Custom Hazard Data</h4><p>Feature data available</p></div>`);
-                        }
-                    }
-                });
-                // Delegate to unified hazard adder so we use single canonical window.hazardLayer
-                if (window.map) {
-                    try {
-                        addHazardToMap(transformedGeoJSON, hazardType === 'debris-flow' ? 'debris_flow' : hazardType);
-                        console.log(`✅ Custom hazard data loaded with ${transformedGeoJSON.features.length} features`);
-                        alert('✅ Custom hazard data loaded successfully!');
-                        // Clear file inputs and labels so the user can upload again (overwrite)
-                        try {
-                            const hazardUploadInputEl = document.getElementById('custom-hazard-upload');
-                            const genericUploadInputEl = document.getElementById('custom-data-upload');
-                            if (hazardUploadInputEl) {
-                                hazardUploadInputEl.value = '';
-                                const label = hazardUploadInputEl.parentElement && hazardUploadInputEl.parentElement.querySelector('.custom-file-label');
-                                if (label) label.textContent = 'Choose file...';
-                            }
-                            if (genericUploadInputEl) {
-                                genericUploadInputEl.value = '';
-                                const label2 = genericUploadInputEl.parentElement && genericUploadInputEl.parentElement.querySelector('.custom-file-label');
-                                if (label2) label2.textContent = 'Choose file...';
-                            }
-                        } catch (e) { /* ignore non-fatal */ }
-                    } catch (error) {
-                        console.error('❌ Error adding custom hazard to map:', error);
-                        alert('⚠️ Failed to add custom hazard to map. See console.');
-                    }
-                } else {
-                    console.error('❌ Map not available');
-                    alert('⚠️ Map not available. Please refresh the page and try again.');
-                }
-            } catch (error) {
-                console.error('❌ Error in loadCustomHazardDataToMap:', error);
-                alert('⚠️ Error loading custom hazard data to map: ' + error.message);
-            }
-        }
-
-        // Function to load custom buildings data to map
-        function loadCustomBuildingsDataToMap(geojsonData) {
-            if (window.buildingsLayer && window.map) {
-                    try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
-                    console.log('buildings were removed', window.buildingsLayer);
-                    window.buildingsLayer = null;
-                    window.buildingsData = null;
-                    console.log('values set to null');
-
-            }
-            console.log('🏢 Loading custom buildings data to map...');
-            try {
-                // Remove existing buildings layer if present (single variable)
-                if (window.buildingsLayer && window.map) {
-                    try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
-                    console.log('buildings were removed', window.buildingsLayer);
-                    window.buildingsLayer = null;
-                    window.buildingsData = null;
-                    console.log('values set to null');
-
-                }
-                // Detect coordinate system and transform if needed
-                const transformedGeoJSON = detectAndTransformCoordinates(geojsonData);
-                if (!transformedGeoJSON || !transformedGeoJSON.features || transformedGeoJSON.features.length === 0) {
-                    alert('⚠️ No valid building features found after coordinate processing.');
-                    return;
-                }
-                // Create Leaflet layer for all geometry types and assign directly to the single global
-                window.buildingsLayer = L.geoJSON(transformedGeoJSON, {
-                    pointToLayer: function(feature, latlng) {
-                        // Style for building points
-                        return L.circleMarker(latlng, {
-                            radius: 6,
-                            fillColor: '#ff7800',
-                            color: '#000',
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.8,
-                            interactive: true
-                        });
-                    },
-                    style: function(feature) {
-                        // Style for polygons (if any)
-                        return {
-                            color: '#ff7800',
-                            weight: 2,
-                            opacity: 1,
-                            fillColor: '#ffd580',
-                            fillOpacity: 0.5
-                        };
-                    },
-                    onEachFeature: function(feature, layer) {
-                        try {
-                            const props = feature.properties || {};
-                            // Prioritized building fields (common Supabase fields + generic names)
-                            const priority = ['EGID','GGDENAME','GDEKT','GKAT','GBAUJ','GAREA','GVOL','id','name','address','adresse','egid','gkd','gkode'];
-                            const used = new Set();
-                            let popupContent = `<div class="building-popup"><h6><strong>🏢 Building</strong></h6>`;
-
-                            // Add priority fields first
-                            for (const key of priority) {
-                                if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== undefined && props[key] !== '') {
-                                    const displayKey = key.replace(/_/g,' ');
-                                    let val = props[key];
-                                    if (typeof val === 'number') val = val.toLocaleString();
-                                    popupContent += `<p><strong>${displayKey}:</strong> ${String(val)}</p>`;
-                                    used.add(key);
-                                }
-                            }
-
-                            // Add remaining properties
-                            Object.keys(props).forEach(k => {
-                                if (used.has(k)) return;
-                                const v = props[k];
-                                if (v === null || v === undefined || v === '') return;
-                                let displayVal;
-                                if (typeof v === 'object') {
-                                    try { displayVal = JSON.stringify(v); } catch(e) { displayVal = String(v); }
-                                } else {
-                                    displayVal = String(v);
-                                }
-                                if (displayVal.length > 300) displayVal = displayVal.slice(0,300) + '…';
-                                popupContent += `<p><strong>${k.replace(/_/g,' ')}:</strong> ${displayVal}</p>`;
-                            });
-
-                            // Show coordinates for points (lat,lng)
-                            if (feature.geometry && feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates)) {
-                                const [lng, lat] = feature.geometry.coordinates;
-                                if (!isNaN(lat) && !isNaN(lng)) popupContent += `<p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
-                            }
-
-                            // Add a small button to view full JSON in popup
-                            const raw = JSON.stringify(feature.properties || {}, null, 2).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                            popupContent += `</div><details style="margin-top:6px;font-size:12px;"><summary style="cursor:pointer;">View full attributes (JSON)</summary><pre style="max-height:200px;overflow:auto;background:#f7f7f7;padding:8px;border-radius:4px;font-size:12px;">${raw}</pre></details>`;
-                            layer.bindPopup(popupContent);
-                            try { layer.on && layer.on('click', function() { this.openPopup(); }); } catch (e) { /* ignore */ }
-                        } catch (err) {
-                            layer.bindPopup('<div class="building-popup">Custom building feature</div>');
-                            try { layer.on && layer.on('click', function() { this.openPopup(); }); } catch (e) { /* ignore */ }
-                        }
-                    }
-                });
-                // Add to map
-                if (window.map) {
-                    // add global buildings layer to the map
-                    window.buildingsLayer.addTo(window.map);
-                    window.buildingsData = null;
-                    // Add to layer control so visibility can be toggled (use unified name)
-                    try {
-                        if (window.ctlLayers) {
-                            removeOverlayByName('🏢 Buildings');
-                            window.ctlLayers.addOverlay(window.buildingsLayer, '🏢 Buildings');
-                        }
-                    } catch (e) { /* ignore non-fatal */ }
-                    // Fit map to bounds
-                    if (window.buildingsLayer.getBounds && window.buildingsLayer.getBounds().isValid()) {
-                        window.map.fitBounds(window.buildingsLayer.getBounds().pad(0.1));
-                    }
-                    alert(`✅ Custom buildings data loaded successfully! (${transformedGeoJSON.features.length} features)`);
-                    // Clear file inputs and labels so the user can upload again (overwrite)
-                    try {
-                        const buildingUploadInputEl = document.getElementById('custom-building-upload');
-                        const genericUploadInputEl = document.getElementById('custom-data-upload');
-                        if (buildingUploadInputEl) {
-                            buildingUploadInputEl.value = '';
-                            const label = buildingUploadInputEl.parentElement && buildingUploadInputEl.parentElement.querySelector('.custom-file-label');
-                            if (label) label.textContent = 'Choose file...';
-                        }
-                        if (genericUploadInputEl) {
-                            genericUploadInputEl.value = '';
-                            const label2 = genericUploadInputEl.parentElement && genericUploadInputEl.parentElement.querySelector('.custom-file-label');
-                            if (label2) label2.textContent = 'Choose file...';
-                        }
-                    } catch (e) { /* ignore non-fatal */ }
-                } else {
-                    alert('⚠️ Map not available. Please refresh the page and try again.');
-                }
-            } catch (error) {
-                console.error('❌ Error in loadCustomBuildingsDataToMap:', error);
-                alert('⚠️ Error loading custom buildings data to map: ' + error.message);
-            }
-        }
-        
-        // Function to detect coordinate system and transform if needed
-        function detectAndTransformCoordinates(geojsonData) {
-            console.log('🔍 Detecting coordinate system...');
-            
-            try {
-                if (!geojsonData || !geojsonData.features || geojsonData.features.length === 0) {
-                    console.warn('⚠️ No features to process');
-                    return geojsonData;
-                }
-                
-                // Sample first coordinate to detect CRS
-                const firstFeature = geojsonData.features[0];
-                
-                // Quick validation without stopping
-                if (!firstFeature || !firstFeature.geometry || !firstFeature.geometry.coordinates) {
-                    console.warn('⚠️ Invalid feature structure, using original coordinates');
-                    return geojsonData;
-                }
-                
-                // Skip detailed logging to avoid debugger interference
-                
-                // Get sample coordinate based on geometry type
-                let sampleCoord = null;
-                const coords = firstFeature.geometry.coordinates;
-                
-                switch (firstFeature.geometry.type) {
-                    case 'Point':
-                        sampleCoord = coords;
-                        break;
-                    case 'Polygon':
-                        sampleCoord = coords && coords[0] && coords[0][0] ? coords[0][0] : null;
-                        break;
-                    case 'MultiPolygon':
-                        sampleCoord = coords && coords[0] && coords[0][0] && coords[0][0][0] ? coords[0][0][0] : null;
-                        break;
-                    case 'LineString':
-                        sampleCoord = coords && coords[0] ? coords[0] : null;
-                        break;
-                    default:
-                        console.warn('⚠️ Unsupported geometry type:', firstFeature.geometry.type);
-                        return geojsonData;
-                }
-                
-                if (!sampleCoord || !Array.isArray(sampleCoord) || sampleCoord.length < 2) {
-                    console.warn('⚠️ Could not extract valid coordinate, using original data');
-                    return geojsonData;
-                }
-                
-                const [x, y] = sampleCoord;
-                console.log(`📍 Sample coordinate: [${x}, ${y}]`);
-                
-                // Quick coordinate system detection
-                let isSwissCoordinates = false;
-                
-                // Swiss LV95 detection: X: 2.4M-3M, Y: 1M-1.4M
-                if (x >= 2400000 && x <= 3000000 && y >= 1000000 && y <= 1400000) {
-                    isSwissCoordinates = true;
-                    console.log('🇨🇭 Swiss LV95 detected');
-                } else if (x >= -180 && x <= 180 && y >= -90 && y <= 90) {
-                    console.log('🌍 WGS84 detected');
-                } else {
-                    console.warn('⚠️ Unknown CRS, assuming WGS84');
-                }
-                
-                // Transform if needed — prefer the window-scoped swissToWGS84 if present
-                const hasSwissFn = (typeof window !== 'undefined' && typeof window.swissToWGS84 === 'function') || (typeof swissToWGS84 === 'function');
-                if (isSwissCoordinates && hasSwissFn) {
-                    console.log('🔄 Converting Swiss → WGS84...');
-                    return transformSwissToWGS84(geojsonData);
-                } else if (isSwissCoordinates) {
-                    console.error('❌ Swiss coordinates detected but no transformation function');
-                    alert('⚠️ Swiss coordinates detected but transformation not available. Please use WGS84.');
-                    return geojsonData;
-                } else {
-                    console.log('✅ Using coordinates as WGS84');
-                    return geojsonData;
-                }
-                
-            } catch (error) {
-                console.error('❌ Error in coordinate detection:', error);
-                return geojsonData;
-            }
-        }
-        
-        // Separate function for Swiss coordinate transformation
-        function transformSwissToWGS84(geojsonData) {
-            try {
-                const transformedFeatures = geojsonData.features.map((feature, index) => {
-                    const newFeature = { ...feature };
-                    
-                    function transformCoordArray(coords) {
-                        if (typeof coords[0] === 'number' && coords.length >= 2) {
-                                    const [east, north] = coords;
-                                    if (!isNaN(east) && !isNaN(north)) {
-                                        // Use window.swissToWGS84 if available (more robust across load order)
-                                        const conv = (typeof window !== 'undefined' && typeof window.swissToWGS84 === 'function') ? window.swissToWGS84 : (typeof swissToWGS84 === 'function' ? swissToWGS84 : null);
-                                        if (conv) {
-                                            const wgs84 = conv(east, north);
-                                            return [wgs84.lng, wgs84.lat];
-                                        } else {
-                                            // No conversion function available, return original coords
-                                            return coords;
-                                        }
-                                    }
-                        }
-                        return Array.isArray(coords) ? coords.map(transformCoordArray) : coords;
-                    }
-                    
-                    if (newFeature.geometry && newFeature.geometry.coordinates) {
-                        newFeature.geometry = {
-                            ...feature.geometry,
-                            coordinates: transformCoordArray(feature.geometry.coordinates)
-                        };
-                    }
-                    
-                    return newFeature;
-                });
-                
-                console.log('✅ Transformation completed');
-                return {
-                    type: "FeatureCollection",
-                    features: transformedFeatures
-                };
-            } catch (error) {
-                console.error('❌ Transformation error:', error);
-                return geojsonData;
-            }
-        }
+        // NOTE: Data processing functions moved to data-processing.js module
+        // - processCustomDataFile()
+        // - loadCustomHazardDataToMap()
+        // - loadCustomBuildingsDataToMap()
+        // - detectAndTransformCoordinates()
+        // - transformSwissToWGS84()
+        // - getSelectedHazardType()
     }
     
-    // Building add button functionality
-    function initializeBuildingButton() {
-        const addBuildingsBtn = document.getElementById('add-buildings-btn');
-        
-        if (addBuildingsBtn) {
-            addBuildingsBtn.addEventListener('click', function() {
-                console.log('🏢 Add buildings to map clicked');
-                
-                // Only fetch buildings if zoom is sufficient and map is available
-                if (!window.map || typeof window.map.getZoom !== 'function') {
-                    alert('Map not ready');
-                    return;
-                }
-                const z = window.map.getZoom();
-                if (z < 15) {
-                    alert('Zoom in to level 15 or more to load buildings.');
-                    return;
-                }
-
-                // Remove existing buildings first
-                removeBuildingsData();
-
-                // Compute current map view bbox (WGS84) and convert to Swiss LV95 for Supabase
-                try {
-                    const bounds = window.map.getBounds();
-                    const sw = bounds.getSouthWest();
-                    const ne = bounds.getNorthEast();
-                    // convert to Swiss LV95 if converter available
-                    if (typeof window.WGS84ToSwiss === 'function') {
-                        const minSwiss = window.WGS84ToSwiss(sw.lng, sw.lat);
-                        const maxSwiss = window.WGS84ToSwiss(ne.lng, ne.lat);
-                        window.currentBBox = [minSwiss.east, minSwiss.north, maxSwiss.east, maxSwiss.north];
-                    } else {
-                        window.currentBBox = [sw.lng, sw.lat, ne.lng, ne.lat];
-                    }
-                    console.log('📦 Set window.currentBBox (from map view) for Supabase:', window.currentBBox);
-                } catch (err) {
-                    console.warn('⚠️ Could not compute map bbox for Supabase query', err);
-                }
-
-                // Trigger the buildings load for the current bbox
-                console.log('Adding buildings layer for current map view...');
-                loadBuildingsData();
-                checkWorkflowProgress();
-            });
-        }
-    }
-
-    // Function to load buildings data (tries multiple sources)
-    function loadBuildingsData() {
-        console.log('🏢 Loading buildings data...');
-        
-        // Try Supabase first (if available)
-        if (typeof window.loadBuildingsFromSupabase === 'function') {
-            console.log('📡 Attempting to load buildings from Supabase...');
-            window.loadBuildingsFromSupabase();
-        }
-        // Fallback to static ti_buildings data
-        else if (typeof ti_buildings !== 'undefined') {
-            console.log('📄 Loading buildings from static ti_buildings data...');
-            loadStaticBuildingsData();
-        }
-        // Final fallback
-        else {
-            console.warn('⚠️ No buildings data source available');
-            alert('No buildings data available. Please check data sources.');
-        }
-    }
-
-    // Function to load static buildings data from ti_buildings.js
-    function loadStaticBuildingsData() {
-        try {
-            console.log(`📊 Processing ti_buildings with ${ti_buildings.features?.length || 0} features`);
-            
-            if (!ti_buildings.features || ti_buildings.features.length === 0) {
-                console.warn('⚠️ No building features found in ti_buildings data');
-                return;
-            }
-
-            // Check if map is available
-            if (!window.map) {
-                console.error('❌ Map not available');
-                return;
-            }
-
-            // Remove existing buildings layer if present (single variable)
-            if (window.buildingsLayer) {
-                try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
-                window.buildingsLayer = null;
-                window.buildingsData = null;
-            }
-
-            // Transform Swiss coordinates to WGS84 and create markers
-            const buildingMarkers = [];
-
-            ti_buildings.features.forEach((building, index) => {
-                try {
-                    const coords = building.geometry.coordinates;
-                    const props = building.properties;
-                    
-                    // Transform Swiss LV95 coordinates to WGS84
-                    let lat, lng;
-                    if (typeof swissToWGS84 === 'function') {
-                        const wgs84 = swissToWGS84(coords[0], coords[1]);
-                        lat = wgs84.lat;
-                        lng = wgs84.lng;
-                    } else {
-                        console.warn('⚠️ swissToWGS84 function not available, skipping coordinate transformation');
-                        return;
-                    }
-
-                    // Validate coordinates
-                    if (!lat || !lng || isNaN(lat) || isNaN(lng) || 
-                        lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-                        return;
-                    }
-
-                    // Create marker
-                    const marker = L.circleMarker([lat, lng], {
-                        radius: 6,
-                        fillColor: '#ff7800',
-                        color: '#000',
-                        weight: 1,
-                        opacity: 1,
-                        fillOpacity: 0.8,
-                        interactive: true
-                    });
-
-                    // Create popup content
-                    const popupContent = `
-                        <div class="building-popup">
-                            <h6><strong>🏢 Building ${props.egid}</strong></h6>
-                            <p><strong>Status:</strong> ${props.buildingStatus || 'Unknown'}</p>
-                            <p><strong>Category:</strong> ${props.buildingCategory || 'Unknown'}</p>
-                            <p><strong>Class:</strong> ${props.buildingClass || 'Unknown'}</p>
-                            <p><strong>Municipality:</strong> ${props.municipalityName || 'Unknown'}</p>
-                            <p><strong>Canton:</strong> ${props.canton || 'Unknown'}</p>
-                            <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-                        </div>
-                    `;
-
-                    marker.bindPopup(popupContent);
-                    try { marker.on('click', function() { this.openPopup(); }); } catch (e) { /* ignore */ }
-                    buildingMarkers.push(marker);
-
-                } catch (error) {
-                    console.warn(`⚠️ Error processing building ${building.properties?.egid}:`, error);
-                }
-            });
-
-            // Create layer group and add to map
-            if (buildingMarkers.length > 0) {
-                window.buildingsLayer = L.layerGroup(buildingMarkers);
-                window.buildingsLayer.addTo(window.map);
-                
-                console.log(`✅ Added ${buildingMarkers.length} buildings to map`);
-                
-                // Zoom to extent of buildings
-                const group = new L.featureGroup(buildingMarkers);
-                window.map.fitBounds(group.getBounds().pad(0.1));
-                
-            } else {
-                console.warn('⚠️ No valid building markers created');
-            }
-
-        } catch (error) {
-            console.error('❌ Error loading static buildings data:', error);
-        }
-    }
-
-    // Function to remove buildings data
-    function removeBuildingsData() {
-        console.log('🗑️ Removing buildings data...');
-        
-        // Remove Supabase buildings layer
-        if (typeof window.removeBuildingsFromMap === 'function') {
-            window.removeBuildingsFromMap();
-        }
-        
-        // Remove any displayed buildings layer
-        if (window.buildingsLayer && window.map) {
-            try { window.map.removeLayer(window.buildingsLayer); } catch (e) {}
-            window.buildingsLayer = null;
-            window.buildingsData = null;
-            console.log('✅ Buildings layer removed');
-        }
-        // Also remove any plain building layer reference
-        try {
-            if (window.buildingsPlainLayer && window.map && window.map.hasLayer(window.buildingsPlainLayer)) {
-                window.map.removeLayer(window.buildingsPlainLayer);
-            }
-            window.buildingsPlainLayer = null;
-        } catch (e) { /* ignore */ }
-        // Remove any buildings overlay entries from layer control
-        try {
-            if (window.ctlLayers) removeOverlayByName('🏢 Buildings');
-        } catch (e) { /* ignore */ }
-        // Remove zoom toggle handler if present
-        try {
-            if (window._buildingsZoomToggleHandler && window.map) {
-                window.map.off('zoomend', window._buildingsZoomToggleHandler);
-                window._buildingsZoomToggleHandler = null;
-            }
-        } catch (e) { /* ignore */ }
-    }
-
-    // Single canonical function to add buildings to the map
-    // Accepts either a GeoJSON FeatureCollection or an array of Supabase records
-    // Helper: remove overlay(s) from layer control by display name
-    function removeOverlayByName(name) {
-        // Remove any overlay whose name matches or contains the provided name.
-        // This helps cleaning up earlier variants like '🏢 Buildings (plain)' or
-        // '🏢 Buildings (clustered)' so we only ever keep one buildings overlay.
-        if (!window.ctlLayers || !window.ctlLayers._layers) return;
-        try {
-            Object.keys(window.ctlLayers._layers).forEach(k => {
-                const item = window.ctlLayers._layers[k];
-                if (!item || !item.name || !item.layer) return;
-                try {
-                    // Match exact or substring (case-sensitive for emoji/name stability)
-                    if (item.name === name || item.name.indexOf(name) === 0 || item.name.includes(name)) {
-                        try { window.ctlLayers.removeLayer(item.layer); } catch (e) { /* ignore */ }
-                    }
-                } catch (e) { /* ignore per-item errors */ }
-            });
-        } catch (e) { /* ignore */ }
-    }
-
-    // Helper to build building popup HTML from properties and optional geometry
-    function buildBuildingPopupContent(props = {}, geometry = null, buildingAnalysisData = null) {
-        try {
-            const priority = ['EGID','GGDENAME','GDEKT','GKAT','GBAUJ','GAREA','GVOL','id','name','address','adresse','egid','gkd','gkode'];
-            const used = new Set();
-            let html = `<div class="building-popup"><h6><strong>🏢 Building</strong></h6>`;
-            
-            // Add hazard information section if analysis data is available
-            if (buildingAnalysisData && Array.isArray(buildingAnalysisData)) {
-                // Find all hazard exposures for this building using EGID
-                const buildingEGID = props.EGID;
-                const hazardExposures = buildingAnalysisData.filter(building => {
-                    const buildingProps = building.buildingProperties || {};
-                    return buildingProps.EGID === buildingEGID;
-                });
-                
-                if (hazardExposures.length > 0) {
-                    html += `<div style="background-color:#f0f8ff;padding:8px;margin:8px 0;border-radius:4px;border-left:4px solid #007bff;">`;
-                    html += `<h6><strong>🚨 Hazard Information</strong></h6>`;
-                    
-                    if (hazardExposures.length === 1) {
-                        const exposure = hazardExposures[0];
-                        html += `<p><strong>Hazard Type:</strong> ${exposure.hazardType || window.selectedHazard || 'N/A'}</p>`;
-                        html += `<p><strong>Intensity:</strong> ${exposure.intensity || 'N/A'}</p>`;
-                        html += `<p><strong>Recurrence Period:</strong> ${exposure.recurrence || 'N/A'}</p>`;
-                    } else {
-                        html += `<p><strong>Multiple Hazard Exposures (${hazardExposures.length}):</strong></p>`;
-                        hazardExposures.forEach((exposure, index) => {
-                            html += `<div style="margin-left:10px;padding:4px 0;border-bottom:1px solid #ddd;">`;
-                            html += `<strong>Exposure ${index + 1}:</strong><br>`;
-                            html += `• Type: ${exposure.hazardType || window.selectedHazard || 'N/A'}<br>`;
-                            html += `• Intensity: ${exposure.intensity || 'N/A'}<br>`;
-                            html += `• Recurrence: ${exposure.recurrence || 'N/A'}`;
-                            html += `</div>`;
-                        });
-                    }
-                    html += `</div>`;
-                } else {
-                    html += `<div style="background-color:#fff3cd;padding:8px;margin:8px 0;border-radius:4px;border-left:4px solid #ffc107;">`;
-                    html += `<p><strong>ℹ️ No Hazard Exposure</strong> - Building not analyzed or outside hazard zones</p>`;
-                    html += `</div>`;
-                }
-            }
-
-            for (const key of priority) {
-                if (props.hasOwnProperty(key) && props[key] !== null && props[key] !== undefined && props[key] !== '') {
-                    const displayKey = key.replace(/_/g,' ');
-                    let val = props[key];
-                    if (typeof val === 'number') val = val.toLocaleString();
-                    html += `<p><strong>${displayKey}:</strong> ${String(val)}</p>`;
-                    used.add(key);
-                }
-            }
-
-            Object.keys(props).forEach(k => {
-                if (used.has(k)) return;
-                const v = props[k];
-                if (v === null || v === undefined || v === '') return;
-                let displayVal;
-                if (typeof v === 'object') {
-                    try { displayVal = JSON.stringify(v); } catch(e) { displayVal = String(v); }
-                } else {
-                    displayVal = String(v);
-                }
-                if (displayVal.length > 300) displayVal = displayVal.slice(0,300) + '…';
-                html += `<p><strong>${k.replace(/_/g,' ')}:</strong> ${displayVal}</p>`;
-            });
-
-            // Coordinates if geometry point
-            if (geometry && geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
-                const [lng, lat] = geometry.coordinates;
-                if (!isNaN(lat) && !isNaN(lng)) html += `<p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>`;
-            }
-
-            const raw = JSON.stringify(props || {}, null, 2).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            html += `</div><details style="margin-top:6px;font-size:12px;"><summary style="cursor:pointer;">View full attributes (JSON)</summary><pre style="max-height:200px;overflow:auto;background:#f7f7f7;padding:8px;border-radius:4px;font-size:12px;">${raw}</pre></details>`;
-            return html;
-        } catch (err) {
-            return `<div class="building-popup"><h6><strong>🏢 Building</strong></h6><p>Attributes unavailable</p></div>`;
-        }
-    }
-
-    window.addBuildingsToMap = async function(data) {
-        console.log('🗺️ window.addBuildingsToMap called');
-        if (!window.map) { console.error('❌ Map not initialized'); return; }
-
-        // Remove existing buildings layer and any cluster/plain layers and handlers
-        if (window.buildingsLayer) {
-            try { window.map.removeLayer(window.buildingsLayer); } catch (e) { /* ignore */ }
-            window.buildingsLayer = null;
-            window.buildingsData = null;
-            console.log('🗑️ Existing buildings layer removed');
-        }
-        // Remove previous plain building layer if present (clusters are not used)
-        try {
-            if (window.buildingsPlainLayer && window.map && window.map.hasLayer(window.buildingsPlainLayer)) {
-                window.map.removeLayer(window.buildingsPlainLayer);
-            }
-            window.buildingsPlainLayer = null;
-        } catch (e) { /* ignore */ }
-        // Remove previous zoom handler if set (leftover from cluster/zoom toggle behaviour)
-        try {
-            if (window._buildingsZoomToggleHandler && window.map) {
-                try { window.map.off('zoomend', window._buildingsZoomToggleHandler); } catch(e) {}
-            }
-            // clear to avoid dangling references
-            window._buildingsZoomToggleHandler = null;
-        } catch (e) { /* ignore */ }
-
-        // If GeoJSON FeatureCollection
-        if (data && data.type === 'FeatureCollection' && Array.isArray(data.features)) {
-            console.log('🔎 Detected GeoJSON FeatureCollection');
-            try {
-                const layer = L.geoJSON(data, {
-                    pointToLayer: function(feature, latlng) {
-                        return L.circleMarker(latlng, { radius: 6, fillColor: '#ff7800', color: '#000', weight:1, fillOpacity:0.8, interactive:true });
-                    },
-                    style: function(feature) { return { color:'#ff7800', weight:2, fillColor:'#ffd580', fillOpacity:0.5 }; },
-                    onEachFeature: function(feature, layer) {
-                        try {
-                            const p = feature.properties || {};
-                            const html = buildBuildingPopupContent(p, feature.geometry, window.latestExtractionResults?.buildingsAnalyzed);
-                            layer.bindPopup(html);
-                        } catch (e) { layer.bindPopup('<div class="building-popup">Building feature</div>'); }
-                    }
-                });
-                layer.addTo(window.map);
-                window.buildingsLayer = layer;
-                window.buildingsData = null;
-                // Add to layer control so visibility can be toggled (use unified name)
-                try {
-                    if (window.ctlLayers) {
-                        removeOverlayByName('🏢 Buildings');
-                        window.ctlLayers.addOverlay(window.buildingsLayer, '🏢 Buildings');
-                    }
-                } catch (e) { console.warn('⚠️ Could not add buildings layer to layer control', e); }
-                console.log(`✅ Added ${data.features.length} custom GeoJSON building features`);
-                try { if (layer.getBounds && layer.getBounds().isValid()) window.map.fitBounds(layer.getBounds().pad(0.1)); } catch(e){}
-            } catch (err) {
-                console.error('❌ Error adding GeoJSON buildings:', err);
-                alert('Error adding GeoJSON buildings. See console.');
-            }
-            return;
-        }
-
-        // If array of Supabase records: create a single plain layer (no clustering)
-        if (Array.isArray(data)) {
-            console.log('🔎 Detected Supabase records array (creating plain markers only)');
-            const plainLayer = L.layerGroup();
-            const coords = [];
-            let added = 0;
-
-            // Chunked rendering for large datasets to keep UI responsive
-            const CHUNK_SIZE = 500; // number of records to process per chunk
-            const CHUNK_DELAY_MS = 50; // delay between chunks to yield to UI
-
-            const createMarkersForSlice = (slice) => {
-                const markers = [];
-                slice.forEach(b => {
-                    try {
-                        if (b.GKODE && b.GKODN) {
-                            const conv = (typeof window.swissToWGS84 === 'function') ? window.swissToWGS84 : (typeof swissToWGS84 === 'function' ? swissToWGS84 : null);
-                            const w = conv ? conv(b.GKODE, b.GKODN) : null;
-                            if (w && !isNaN(w.lat) && !isNaN(w.lng)) {
-                                const m = L.circleMarker([w.lat, w.lng], { radius:8, fillColor:'#e49321ff', color:'#0b0b0bff', weight:2, fillOpacity:0.7, interactive:true });
-                                
-                                // IMPORTANT: Attach building properties as feature so spatial analysis can access them
-                                m.feature = {
-                                    type: 'Feature',
-                                    geometry: {
-                                        type: 'Point',
-                                        coordinates: [w.lng, w.lat]
-                                    },
-                                    properties: b || {}
-                                };
-                                
-                                const props = b || {};
-                                const html = buildBuildingPopupContent(props, null, window.latestExtractionResults?.buildingsAnalyzed);
-                                m.bindPopup(html);
-                                try { m.on && m.on('click', function(){ this.openPopup(); }); } catch(e){}
-                                markers.push(m);
-                                coords.push([w.lat, w.lng]);
-                                added++;
-                            }
-                        }
-                    } catch(e){ console.warn('⚠️ Error processing record', e); }
-                });
-                return markers;
-            };
-
-            // Process in chunks
-            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-                const slice = data.slice(i, i + CHUNK_SIZE);
-                const markers = createMarkersForSlice(slice);
-                if (markers.length > 0) {
-                    try { markers.forEach(m => plainLayer.addLayer(m)); } catch(e) { markers.forEach(m => plainLayer.addLayer(m)); }
-                }
-                console.log(`🔁 Rendered ${Math.min(i + CHUNK_SIZE, data.length)} / ${data.length} building records`);
-                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
-            }
-
-            if (added > 0) {
-                plainLayer.addTo(window.map);
-                window.buildingsPlainLayer = plainLayer;
-                // Canonical buildingsLayer is the plain layer
-                window.buildingsLayer = plainLayer;
-                window.buildingsData = data;
-                try {
-                    if (window.ctlLayers) {
-                        removeOverlayByName('🏢 Buildings');
-                        window.ctlLayers.addOverlay(plainLayer, '🏢 Buildings');
-                    }
-                } catch (e) { console.warn('⚠️ Could not add Supabase buildings layer to layer control', e); }
-                console.log(`✅ Added ${added} Supabase building markers (chunked, plain)`);
-                try {
-                    if (plainLayer && typeof plainLayer.getLayers === 'function' && plainLayer.getLayers().length > 0) {
-                        const g = new L.featureGroup(plainLayer.getLayers());
-                        window.map.fitBounds(g.getBounds().pad(0.1));
-                    } else if (coords.length === 1) {
-                        window.map.setView(coords[0], 15);
-                    }
-                } catch(e){}
-            } else {
-                console.warn('⚠️ No valid Supabase building markers created');
-                alert('No valid building markers created');
-            }
-            return;
-        }
-
-        console.error('❌ addBuildingsToMap received unsupported data type');
-    };
+    // ============================
+    // MODULAR ARCHITECTURE - BUILDING MANAGEMENT
+    // ============================
+    // Building management functions moved to building-management.js module
     
     // Vulnerability controls functionality
+    // Moved to vulnerability.js module - Step 5 Enhancement
     function initializeVulnerabilityControls() {
-        const showCurvesBtn = document.getElementById('show-curves-btn');
-        
-        if (showCurvesBtn) {
-            showCurvesBtn.addEventListener('click', function() {
-                console.log('Show vulnerability curves clicked');
-                // Implement vulnerability curves display
-                //alert('Vulnerability curves will be displayed here');
-            });
-        }
+        // The vulnerability modal setup is now handled by vulnerability.js module
+        console.log('✅ Vulnerability controls initialization delegated to vulnerability.js module');
     }
     
-    // Analysis controls functionality
+    // ============================
+    // ANALYSIS CONTROLS - MODULAR ARCHITECTURE  
+    // ============================
+    // Analysis functions moved to analysis-visualization.js module
+    
     function initializeAnalysisControls() {
         const runAnalysisBtn = document.getElementById('run-analysis-btn');
         const showResultsBtn = document.getElementById('show-results-btn');
@@ -1694,9 +758,10 @@ function initializeWorkflow() {
                         building.TEMPORAL_HAZARD_PROB = temporalHazardProb;
 
                         // Step 6: Spatial Hazard Probability - calculate using spatialHazardProbValdorisk function
+                        // Function now available from enhanced spatial-analysis.js module
                         let spatialHazardProb = 'N/A';
                         
-                        if (building?.recurrence && typeof spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
+                        if (building?.recurrence && typeof window.spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
                             // Extract return period number from recurrence string
                             const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
                             
@@ -1709,7 +774,7 @@ function initializeWorkflow() {
                                     console.log(`  - Function available: ${typeof spatialHazardProbValdorisk}`);
                                 }
                                 
-                                spatialHazardProb = spatialHazardProbValdorisk(returnPeriod, window.selectedHazard) || 'N/A';
+                                spatialHazardProb = window.spatialHazardProbValdorisk(returnPeriod, window.selectedHazard) || 'N/A';
                                 
                                 if (index < 3) {
                                     console.log(`  - Calculated spatial hazard prob: ${spatialHazardProb}`);
@@ -1958,12 +1023,12 @@ function initializeWorkflow() {
                 // Calculate spatial probability once (before building loop)
                 const hazardType = window.selectedHazard || 'rockfall';
                 console.log('Selected hazard type:', hazardType);
-                console.log('randomSpatialProb function available:', typeof randomSpatialProb);
+                console.log('randomSpatialProb function available:', typeof window.randomSpatialProb);
                 
                 let spatialProb = 0.5; // Default fallback
                 if (typeof randomSpatialProb === 'function') {
                     try {
-                        spatialProb = randomSpatialProb(hazardType);
+                        spatialProb = window.randomSpatialProb(hazardType);
                         console.log('randomSpatialProb result:', spatialProb);
                     } catch (error) {
                         console.warn('Error calling randomSpatialProb:', error);
@@ -2471,7 +1536,12 @@ function initializeWorkflow() {
         }
     }
     
-    // Function to show the analysis results modal
+    // ============================
+    // ANALYSIS RESULTS MODAL
+    // ============================
+    // Moved to analysis-visualization.js module
+    // Function: showAnalysisResultsModal()
+    
     function showAnalysisResultsModal(extractionResults) {
         console.log('📊 Showing analysis results modal with data:', extractionResults);
         console.log('📊 Buildings analyzed count:', extractionResults?.buildingsAnalyzed?.length || 0);
@@ -2519,7 +1589,11 @@ function initializeWorkflow() {
         };
     }
 
-    // Function to export analysis results to PDF - Enhanced version with visual content
+    // ============================
+    // PDF EXPORT FUNCTIONALITY  
+    // ============================
+    // PDF export moved to analysis-visualization.js module
+    
     function exportResultsToPDF(extractionResults) {
         console.log('📄 Starting enhanced PDF export of analysis results...');
         
@@ -2745,7 +1819,11 @@ function initializeWorkflow() {
         console.log('✅ Fallback PDF created successfully');
     }
     
-    // Function to populate analysis summary
+    // ============================
+    // ANALYSIS SUMMARY - MODULAR ARCHITECTURE
+    // ============================
+    // Analysis summary moved to analysis-visualization.js module
+    
     function populateAnalysisSummary(extractionResults) {
         const summaryContent = document.getElementById('analysis-summary-content');
         if (!summaryContent) return;
@@ -2807,7 +1885,11 @@ function initializeWorkflow() {
         summaryContent.innerHTML = summaryHTML;
     }
     
-    // Function to create AG Grid table with buildings analyzed data
+    // ============================
+    // AG GRID TABLE - MODULAR ARCHITECTURE
+    // ============================
+    // AG Grid functionality moved to analysis-visualization.js module
+    
     function createAnalysisAGGridTable(buildingsAnalyzed) {
         console.log('📊 Creating AG Grid table with buildings analyzed data (Updated version - no deprecated props):', buildingsAnalyzed);
         console.log('📊 Number of buildings to display:', buildingsAnalyzed?.length || 0);
@@ -2862,11 +1944,11 @@ function initializeWorkflow() {
             
             if (building.SPATIAL_HAZARD_PROB !== undefined && building.SPATIAL_HAZARD_PROB !== null) {
                 spatialHazardProbValue = building.SPATIAL_HAZARD_PROB;
-            } else if (building?.recurrence && typeof spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
+            } else if (building?.recurrence && typeof window.spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
                 // Fallback: calculate on-the-fly if stored value not accessible
                 const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
                 if (returnPeriod) {
-                    spatialHazardProbValue = spatialHazardProbValdorisk(returnPeriod, window.selectedHazard) || 'N/A';
+                    spatialHazardProbValue = window.spatialHazardProbValdorisk(returnPeriod, window.selectedHazard) || 'N/A';
                 }
             }
 
@@ -3430,7 +2512,12 @@ function initializeWorkflow() {
         }
     }
     
-    // Function to display detailed analysis results
+    // ============================
+    // DETAILED RESULTS DISPLAY
+    // ============================
+    // Moved to analysis-visualization.js module
+    // Function: displayAnalysisResults()
+    
     function displayAnalysisResults(results) {
         console.log('📊 Displaying analysis results:', results);
         
@@ -3502,7 +2589,12 @@ function initializeWorkflow() {
         highlightAnalyzedBuildings(buildingsAnalyzed);
     }
     
-    // Function to create damage analysis graphs using Plotly
+    // ============================
+    // DAMAGE ANALYSIS GRAPHS
+    // ============================
+    // Moved to analysis-visualization.js module
+    // Function: createDamageAnalysisGraphs()
+    
     function createDamageAnalysisGraphs(buildingsAnalyzed) {
         if (!buildingsAnalyzed || buildingsAnalyzed.length === 0) {
             console.log('⚠️ No buildings analyzed - cannot create damage graphs');
@@ -5586,7 +4678,12 @@ function initializeWorkflow() {
         }, 1200);
     }
 
-    // Function to highlight analyzed buildings on the map
+    // ============================
+    // BUILDING HIGHLIGHTING
+    // ============================
+    // Moved to analysis-visualization.js module
+    // Function: highlightAnalyzedBuildings()
+    
     function highlightAnalyzedBuildings(analyzedBuildings) {
         if (!window.map || !analyzedBuildings || analyzedBuildings.length === 0) {
             return;
@@ -5667,7 +4764,7 @@ function initializeWorkflow() {
         console.log('Populating cantons...');
         
         // Manual canton selection - only the 3 cantons you specified
-        const cantons = ['Graubünden','Ticino','Valais'].sort(); // Sort alphabetically 
+        const cantons = ['Graubünden','Ticino','Valais', 'Vaud', 'Genève'].sort(); // Sort alphabetically 
     
         const cantonSelect = document.getElementById('canton-select');
         
@@ -5792,17 +4889,8 @@ function initializeWorkflow() {
 window.hazardLayer = window.hazardLayer || null;
 
 // Helper: remove overlay(s) from layer control by display name (global)
-function removeOverlayByName(name) {
-    if (!window.ctlLayers || !window.ctlLayers._layers) return;
-    try {
-        Object.keys(window.ctlLayers._layers).forEach(k => {
-            const item = window.ctlLayers._layers[k];
-            if (item && item.name === name && item.layer) {
-                try { window.ctlLayers.removeLayer(item.layer); } catch (e) { /* ignore */ }
-            }
-        });
-    } catch (e) { /* ignore */ }
-}
+// Moved to building-management.js module
+// Function: removeOverlayByName()
 
 // Function to add hazard GeoJSON to the map with appropriate styling and popups
 function addHazardToMap(geojson, hazardType = 'hazard') {
@@ -6648,47 +5736,95 @@ function updateAreaSelector() {
     }
 }
 
-// Main initialization
+// ==================== MAIN INITIALIZATION - MODULAR ARCHITECTURE ====================
+/**
+ * Main application initialization sequence - Step 6 Enhanced
+ */
 function initializeEverything() {
-    // console.log('🚀 Starting initialization...');
+    console.log('🚀 Initializing WebGIS Risk Assessment Application (Modular Architecture)...');
     
-    // Initialize reset button
-    initializeResetButton();
-    
-    // Initialize workflow
-    initializeWorkflow();
-    
-    // Initialize layer controls
-    initializeLayerControls();
-    
-    // Initialize map
-    // console.log('🗺️ Checking for map initialization...');
-    if (typeof initializeMap === 'function') {
-        // console.log('✅ Found initializeMap, calling it...');
-        initializeMap();
+    try {
+        // Core Application Components
+        console.log('⚙️ Initializing core components...');
+        initializeResetButton();
+        initializeWorkflow();
+        initializeLayerControls();
         
-        // Initialize draw functionality after map is ready
+        // Map Initialization
+        console.log('🗺️ Initializing map system...');
+        if (typeof initializeMap === 'function') {
+            initializeMap();
+            
+            // Draw functionality (requires map to be ready)
+            setTimeout(() => {
+                console.log('🎨 Initializing drawing functionality...');
+                initializeDrawFunctionality();
+            }, 1500);
+        } else {
+            console.warn('⚠️ initializeMap not found, will retry...');
+            setTimeout(() => {
+                if (typeof initializeMap === 'function') {
+                    initializeMap();
+                    
+                    // Initialize draw functionality after map is ready
+                    setTimeout(() => {
+                        console.log('🎨 Retry: Initializing drawing functionality...');
+                        initializeDrawFunctionality();
+                    }, 1500);
+                } else {
+                    console.error('❌ initializeMap still not available after retry');
+                }
+            }, 1000);
+        }
+        
+        // Module Validation (after slight delay to allow modules to load)
         setTimeout(() => {
-            initializeDrawFunctionality();
-        }, 1500);
-    } else {
-        console.warn('⚠️ initializeMap not found, will retry...');
-        setTimeout(() => {
-            if (typeof initializeMap === 'function') {
-                // console.log('✅ Found initializeMap on retry, calling it...');
-                initializeMap();
-                
-                // Initialize draw functionality after map is ready
-                setTimeout(() => {
-                    initializeDrawFunctionality();
-                }, 1500);
-            } else {
-                console.error('❌ initializeMap still not available');
-            }
-        }, 1000);
+            console.log('🔍 Validating modular components...');
+            validateModularComponents();
+            console.log('✅ Application initialization completed');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('❌ Error during application initialization:', error);
     }
+}
+
+/**
+ * Validate that all required modular components are loaded
+ */
+function validateModularComponents() {
+    const requiredModules = [
+        { name: 'building-management.js', functions: ['loadBuildingsFromSupabase', 'initializeBuildingButton'] },
+        { name: 'analysis-visualization.js', functions: ['initializeAnalysisControls', 'showAnalysisResultsModal'] },
+        { name: 'spatial-analysis.js', functions: ['extractDataInsidePolygon', 'spatialHazardProbValdorisk'] },
+        { name: 'vulnerability.js', functions: ['rockVulnerabilityDefaults', 'showVulnerabilityModal'] }
+    ];
     
-    // console.log('✅ Initialization complete');
+    let allModulesLoaded = true;
+    
+    requiredModules.forEach(module => {
+        const loadedFunctions = module.functions.filter(func => {
+            return typeof window[func] === 'function' || typeof window[func] === 'object';
+        });
+        
+        if (loadedFunctions.length === module.functions.length) {
+            console.log(`✅ ${module.name} - All functions loaded (${loadedFunctions.length}/${module.functions.length})`);
+        } else {
+            console.warn(`⚠️ ${module.name} - Partial loading (${loadedFunctions.length}/${module.functions.length})`);
+            module.functions.forEach(func => {
+                if (typeof window[func] === 'undefined') {
+                    console.warn(`  - Missing: ${func}`);
+                }
+            });
+            allModulesLoaded = false;
+        }
+    });
+    
+    if (allModulesLoaded) {
+        console.log('🎉 All modular components validated successfully');
+    } else {
+        console.warn('⚠️ Some modular components may not be fully loaded - check module imports');
+    }
 }
 
 // ==================== ZOOM TO ADMINISTRATIVE AREAS ====================

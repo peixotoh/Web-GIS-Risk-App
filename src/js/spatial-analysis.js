@@ -1586,22 +1586,31 @@ function spatialHazardProbValdorisk(rp, hazType) {
  * @returns {number} Random spatial probability
  */
 function randomSpatialProb(hazType) {
-    console.log(`🎲 Generating random spatial probability for ${hazType}`);
+    console.log(`🎲 Generating spatial probability for ${hazType}`);
     
+    // Use fixed values consistent with functions_2.js for proper risk assessment
     if (hazType == 'rock_fall' || hazType == 'rockfall') {
-        return Math.random() * (0.7 - 0.01) + 0.01; // 0.01 to 0.7
+        const value = 0.03; // Fixed 3% spatial probability for rockfall
+        console.log(`  🎯 Rockfall spatial probability: ${value} (3%)`);
+        return value;
     }
     
     if (hazType == 'debris_flow' || hazType == 'debrisflow') {
-        return Math.random() * (0.9 - 0.5) + 0.5; // 0.5 to 0.9
+        const value = 0.7; // Fixed 70% spatial probability for debris flow
+        console.log(`  🎯 Debris flow spatial probability: ${value} (70%)`);
+        return value;
     }
     
     if (hazType == 'flooding' || hazType == 'flood') {
-        return Math.random() * (0.95 - 0.6) + 0.6; // 0.6 to 0.95
+        const value = 0.8; // Fixed 80% spatial probability for flooding
+        console.log(`  🎯 Flooding spatial probability: ${value} (80%)`);
+        return value;
     }
     
-    // Default random probability
-    return Math.random() * (0.8 - 0.1) + 0.1; // 0.1 to 0.8
+    // Default fallback probability
+    const defaultValue = 0.1;
+    console.log(`  ⚠️ Unknown hazard type ${hazType}, using default: ${defaultValue} (10%)`);
+    return defaultValue;
 }
 
 /**

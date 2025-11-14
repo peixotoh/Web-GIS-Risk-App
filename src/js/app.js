@@ -1020,25 +1020,13 @@ function initializeWorkflow() {
                 const numSimulations = simulationCountElement ? parseInt(simulationCountElement.value) : 100; // Changed default to 100 for debugging
                 console.log('Number of simulations:', numSimulations);
                 
-                // Calculate spatial probability once (before building loop)
+                // Spatial probability will be calculated per building based on return period and hazard type
                 const hazardType = window.selectedHazard || 'rockfall';
                 console.log('Selected hazard type:', hazardType);
-                console.log('randomSpatialProb function available:', typeof window.randomSpatialProb);
+                console.log('spatialHazardProbValdorisk function available:', typeof window.spatialHazardProbValdorisk);
                 
-                let spatialProb = 0.5; // Default fallback
-                if (typeof randomSpatialProb === 'function') {
-                    try {
-                        spatialProb = window.randomSpatialProb(hazardType);
-                        console.log('randomSpatialProb result:', spatialProb);
-                    } catch (error) {
-                        console.warn('Error calling randomSpatialProb:', error);
-                        spatialProb = 0.5; // Fallback
-                    }
-                } else {
-                    console.warn('randomSpatialProb function not available, using fallback');
-                }
-                
-                console.log('Final calculated spatial probability:', spatialProb, 'for hazard:', hazardType);
+                // Note: Spatial probability will be calculated individually for each building based on its return period
+                console.log('🎯 Spatial probability will be calculated per building using spatialHazardProbValdorisk(returnPeriod, hazardType)');
                 
                 // Method 3: Loop through all buildings, find first real hazard exposure per building
                 // For each building, collect ALL rows first, then find the best combination
@@ -1142,9 +1130,19 @@ function initializeWorkflow() {
                         const props = building.buildingProperties || {};
                         const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
                         
+                        // Calculate spatial probability for this specific building based on its return period
+                        let spatialProb = 0.03; // Default fallback for rockfall
+                        if (building.recurrence && typeof window.spatialHazardProbValdorisk === 'function') {
+                            const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                            if (returnPeriod) {
+                                spatialProb = window.spatialHazardProbValdorisk(returnPeriod, hazardType) || 0.03;
+                                console.log(`🎯 Method 3 - EGID ${egid}: Return period ${returnPeriod}, Spatial probability: ${spatialProb}`);
+                            }
+                        }
+                        
                         // Call Method 3 function for this building
                         if (typeof window.method3CatModel === 'function') {
-                            console.log(`📞 Calling method3CatModel for EGID ${egid}: GKLAS=${bestRow.gklas}, intensity=${bestRow.intensity}`);
+                            console.log(`📞 Calling method3CatModel for EGID ${egid}: GKLAS=${bestRow.gklas}, intensity=${bestRow.intensity}, spatialProb=${spatialProb}`);
                             
                             const method3Result = window.method3CatModel(hazardType, buildCost, spatialProb, numSimulations, bestRow.gklas, bestRow.intensity);
                             
@@ -1229,6 +1227,13 @@ function initializeWorkflow() {
                             if (match) {
                                 returnPeriod = parseInt(match[0]);
                             }
+                        }
+                        
+                        // Calculate spatial probability for this specific building based on its return period
+                        let spatialProb = 0.03; // Default fallback for rockfall
+                        if (returnPeriod && typeof window.spatialHazardProbValdorisk === 'function') {
+                            spatialProb = window.spatialHazardProbValdorisk(returnPeriod, hazardType) || 0.03;
+                            console.log(`🎯 Method 4 - Building ${index + 1}: Return period ${returnPeriod}, Spatial probability: ${spatialProb}`);
                         }
                         
                         console.log(`Method 4 - Processing building ${index + 1}/${allBuildings.length} (Intensity: ${hazardIntensity}, Return period: ${returnPeriod}, GKLAS: ${gklas}, spatial prob: ${spatialProb})`);
@@ -1366,6 +1371,13 @@ function initializeWorkflow() {
                             if (match) {
                                 returnPeriod = parseInt(match[0]);
                             }
+                        }
+                        
+                        // Calculate spatial probability for this specific building based on its return period
+                        let spatialProb = 0.03; // Default fallback for rockfall
+                        if (returnPeriod && typeof window.spatialHazardProbValdorisk === 'function') {
+                            spatialProb = window.spatialHazardProbValdorisk(returnPeriod, hazardType) || 0.03;
+                            console.log(`🎯 Method 5 & 6 - Building ${index + 1}: Return period ${returnPeriod}, Spatial probability: ${spatialProb}`);
                         }
                         
                         console.log(`Method 5 & 6 - Processing building ${index + 1}/${allBuildings.length} (Return period: ${returnPeriod}, Hazard level: ${hazardLevel}, GKLAS: ${gklas}, spatial prob: ${spatialProb})`);

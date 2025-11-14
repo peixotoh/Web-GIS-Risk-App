@@ -121,8 +121,8 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     
     // Fix spatial probability if undefined
     if (spatialProb === undefined || spatialProb === null || isNaN(spatialProb)) {
-        spatialProb = 0.5; // Default fallback value
-        console.warn('⚠️ Spatial probability was undefined, using fallback value:', spatialProb);
+        spatialProb = 0.03; // Default fallback value for rockfall (3%)
+        console.warn('⚠️ Spatial probability was undefined, using rockfall fallback value:', spatialProb);
     }
     
     console.log('Spatial probability (final):', spatialProb);
@@ -335,8 +335,8 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     
     // Fix spatial probability if undefined
     if (spatialProb === undefined || spatialProb === null || isNaN(spatialProb)) {
-        spatialProb = 0.5; // Default fallback value
-        console.warn('⚠️ Spatial probability was undefined, using fallback value:', spatialProb);
+        spatialProb = 0.03; // Default fallback value for rockfall (3%)
+        console.warn('⚠️ Spatial probability was undefined, using rockfall fallback value:', spatialProb);
     }
     
     console.log('Spatial probability (final):', spatialProb);
@@ -424,7 +424,7 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             // if (logDetail) console.log(`Random value: ${randValue}`);
             
             // Random frequency according to power law (same as Method 3)
-            const frq = (randValue * (0.1 - 0.005)) + 0.005;
+            const frq = (randValue * (0.12 - 0.005)) + 0.005;
             // if (logDetail) console.log(`Frequency: ${frq}`);
             
             // Method 4: Assign intensity according to hazard level (using correct probability logic)
@@ -631,8 +631,8 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
     
     // Fix spatial probability if undefined
     if (spatialProb === undefined || spatialProb === null || isNaN(spatialProb)) {
-        spatialProb = 0.5; // Default fallback value
-        console.warn('⚠️ Spatial probability was undefined, using fallback value:', spatialProb);
+        spatialProb = 0.03; // Default fallback value for rockfall (3%)
+        console.warn('⚠️ Spatial probability was undefined, using rockfall fallback value:', spatialProb);
     }
     
     console.log('Spatial probability (final):', spatialProb);

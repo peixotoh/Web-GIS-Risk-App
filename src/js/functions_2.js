@@ -354,7 +354,7 @@ function vulBorterBart(hazarName, year, danger){
     
 }
 
-// ====================TRINGULAR FUNCTIONS ==================
+// ====================TRIANGULAR FUNCTIONS ==================
 
 // ---- repartition triangle function
 function repartTriangle(x, par) {

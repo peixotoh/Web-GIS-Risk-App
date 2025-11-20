@@ -2988,7 +2988,7 @@ function initializeWorkflow() {
                         type: 'scatter',
                         mode: 'markers',
                         marker: {
-                            color: '#3b8618ff', // Deep green
+                            color: '#ff7f0e', // Orange
                             size: 4,
                             opacity: 0.7,
                             symbol: 'circle'
@@ -3038,7 +3038,7 @@ function initializeWorkflow() {
                                 type: 'scatter',
                                 mode: 'markers',
                                 marker: {
-                                    color: '#ff7f0e', // Orange color
+                                    color: '#d62728', // Red color
                                     size: 3,
                                     opacity: 0.6,
                                     symbol: 'diamond'
@@ -3090,7 +3090,7 @@ function initializeWorkflow() {
                                 type: 'scatter',
                                 mode: 'markers',
                                 marker: {
-                                    color: '#d62728', // Red color
+                                    color: '#9467bd', // Purple color
                                     size: 3,
                                     opacity: 0.6,
                                     symbol: 'triangle-up'
@@ -3142,7 +3142,7 @@ function initializeWorkflow() {
                                 type: 'scatter',
                                 mode: 'markers',
                                 marker: {
-                                    color: '#17becf', // Cyan color
+                                    color: '#8c564b', // Brown color
                                     size: 3,
                                     opacity: 0.6,
                                     symbol: 'triangle-down'
@@ -3257,16 +3257,7 @@ function initializeWorkflow() {
                     returnPeriods.push(returnPeriod);
                 });
                 
-                // Create control for X-axis maximum (use reduce to avoid stack overflow with large arrays)
-                const maxDamageValue = damages.reduce((max, val) => Math.max(max, val), 0);
-                const controlsHtml = `
-                    <div style="margin-bottom: 10px;">
-                        <label for="max-damage-input" style="margin-right: 10px;">Max Damage (CHF):</label>
-                        <input type="number" id="max-damage-input" value="${Math.ceil(maxDamageValue)}" 
-                               style="width: 120px; padding: 2px 5px;" min="0" step="100">
-                        <button onclick="updateExceedanceGraph()" style="margin-left: 10px; padding: 2px 10px;">Update</button>
-                    </div>
-                `;
+                // No control needed - Plotly has built-in zoom functionality
                 
                 const traces = [];
                 
@@ -3278,7 +3269,7 @@ function initializeWorkflow() {
                     type: 'scatter',
                     mode: 'lines',
                     line: {
-                        color: '#2ca02c',
+                        color: '#ff7f0e',
                         width: 3
                     }
                 });
@@ -3306,19 +3297,17 @@ function initializeWorkflow() {
                         // Add to all damages for range calculation
                         allDamages = allDamages.concat(method4Damages);
                         
-                        traces.push({
-                            x: method4Damages,
-                            y: method4ExceedanceProbs,
-                            name: `Method 4`,
-                            type: 'scatter',
-                            mode: 'lines',
-                            line: {
-                                color: '#ff7f0e', // Orange
-                                width: 2
-                            }
-                        });
-                        
-                        // Store Method 4 data globally for update function
+                            traces.push({
+                                x: method4Damages,
+                                y: method4ExceedanceProbs,
+                                name: `Method 4`,
+                                type: 'scatter',
+                                mode: 'lines',
+                                line: {
+                                    color: '#d62728', // Red
+                                    width: 2
+                                }
+                            });                        // Store Method 4 data globally for update function
                         window.method4ExceedanceData = { 
                             damages: method4Damages, 
                             exceedanceProbs: method4ExceedanceProbs, 
@@ -3355,7 +3344,7 @@ function initializeWorkflow() {
                             type: 'scatter',
                             mode: 'lines',
                             line: {
-                                color: '#d62728', // Red
+                                color: '#9467bd', // Purple
                                 width: 2
                             }
                         });
@@ -3397,7 +3386,7 @@ function initializeWorkflow() {
                             type: 'scatter',
                             mode: 'lines',
                             line: {
-                                color: '#17becf', // Cyan
+                                color: '#8c564b', // Brown
                                 width: 2
                             }
                         });
@@ -3432,8 +3421,8 @@ function initializeWorkflow() {
                     height: 450
                 };
                 
-                // Add controls and graph
-                container.innerHTML = controlsHtml + '<div id="exceedance-plot" style="width: 100%; height: 470px;"></div>';
+                // Add graph container
+                container.innerHTML = '<div id="exceedance-plot" style="width: 100%; height: 470px;"></div>';
                 
                 const plotContainer = document.getElementById('exceedance-plot');
                 Plotly.newPlot(plotContainer, traces, layout, {responsive: true});
@@ -3450,101 +3439,7 @@ function initializeWorkflow() {
         }, 300);
     }
     
-    // Global function to update exceedance graph with new X-axis range
-    window.updateExceedanceGraph = function() {
-        const maxDamageInput = document.getElementById('max-damage-input');
-        const plotContainer = document.getElementById('exceedance-plot');
-        
-        if (!maxDamageInput || !plotContainer || !window.exceedanceData) {
-            console.warn('Cannot update exceedance graph - missing elements');
-            return;
-        }
-        
-        // Use reduce to avoid stack overflow with large arrays
-        const fallbackMaxDamage = window.exceedanceData.damages.reduce((max, val) => Math.max(max, val), 0);
-        const maxDamage = parseFloat(maxDamageInput.value) || fallbackMaxDamage;
-        
-        const traces = [];
-        
-        // Method 3 trace
-        traces.push({
-            x: window.exceedanceData.damages,
-            y: window.exceedanceData.exceedanceProbs,
-            name: 'Method 3',
-            type: 'scatter',
-            mode: 'lines',
-            line: {
-                color: '#2ca02c',
-                width: 3
-            }
-        });
-        
-        // Method 4 trace (if available)
-        if (window.method4ExceedanceData) {
-            traces.push({
-                x: window.method4ExceedanceData.damages,
-                y: window.method4ExceedanceData.exceedanceProbs,
-                name: 'Method 4',
-                type: 'scatter',
-                mode: 'lines',
-                line: {
-                    color: '#ff7f0e', // Orange
-                    width: 2
-                }
-            });
-        }
-        
-        // Method 5 trace (if available)
-        if (window.method5ExceedanceData) {
-            traces.push({
-                x: window.method5ExceedanceData.damages,
-                y: window.method5ExceedanceData.exceedanceProbs,
-                name: 'Method 5',
-                type: 'scatter',
-                mode: 'lines',
-                line: {
-                    color: '#d62728', // Red
-                    width: 2
-                }
-            });
-        }
-        
-        // Method 6 trace (if available)
-        if (window.method6ExceedanceData) {
-            traces.push({
-                x: window.method6ExceedanceData.damages,
-                y: window.method6ExceedanceData.exceedanceProbs,
-                name: 'Method 6',
-                type: 'scatter',
-                mode: 'lines',
-                line: {
-                    color: '#17becf', // Cyan
-                    width: 2
-                }
-            });
-        }
-        
-        const layout = {
-            title: `CAT Model Methods - Damage Exceedance Probability`,
-            xaxis: {
-                title: 'Damage (CHF)',
-                type: 'log',
-                autorange: true,
-                gridcolor: '#eee'
-            },
-            yaxis: {
-                title: 'Exceedance Probability',
-                range: [0, 1],
-                gridcolor: '#eee'
-            },
-            margin: { t: 80, b: 60, l: 80, r: 60 },
-            plot_bgcolor: '#fafafa',
-            height: 450
-        };
-        
-        Plotly.newPlot(plotContainer, traces, layout, {responsive: true});
-        console.log('✅ Exceedance graph updated with max damage:', maxDamage);
-    };
+    // updateExceedanceGraph function removed - Plotly's built-in zoom functionality is sufficient
 
     // ================= METHODS COMPARISON FUNCTION =================
     

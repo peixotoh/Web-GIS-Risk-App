@@ -48,6 +48,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- html2canvas for capturing visual content -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -475,6 +478,8 @@
                 <h3 class="modal-title">📊 Spatial Analysis Results</h3>
                 <div class="modal-buttons">
                     <button id="export-results-pdf" class="btn btn-primary" style="margin-right: 10px;">📄 Export PDF</button>
+                    <button id="export-cat-csv" class="btn btn-success" style="margin-right: 10px;">📊 Export CAT CSV</button>
+                    <button id="export-cat-excel" class="btn btn-success" style="margin-right: 10px;">📊 Export CAT Excel</button>
                     <button id="close-analysis-results-modal" class="btn btn-danger">Close</button>
                 </div>
             </div>

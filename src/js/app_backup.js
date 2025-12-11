@@ -5695,9 +5695,9 @@ function addHazardToMap(geojson, hazardType = 'hazard') {
                         case 'forte':
                             color = '#d73027'; fillOpacity = 0.8; break;
                         case 'moyenne':
-                            color = '#F6D700'; fillOpacity = 0.6; break;
+                            color = '#4575b4'; fillOpacity = 0.6; break;
                         case 'faible':
-                            color = '#4575b4'; fillOpacity = 0.4; break;
+                            color = '#fcf11bff'; fillOpacity = 0.4; break;
                         default:
                             color = '#999999'; fillOpacity = 0.0; // hide/transparent
                     }
@@ -5734,14 +5734,14 @@ function addHazardToMap(geojson, hazardType = 'hazard') {
                         if (typeof v === 'number') {
                             // numerical mapping (example thresholds) - adjust if you know exact ranges
                             if (v >= 0.66) { color = '#d73027'; fillOpacity = 0.8; }
-                            else if (v >= 0.33) { color = '#fcf11bff'; fillOpacity = 0.6; }
-                            else { color = '#4575b4'; fillOpacity = 0.4; }
+                            else if (v >= 0.33) { color = '#4575b4'; fillOpacity = 0.6; }
+                            else { color = '#fcf11bff'; fillOpacity = 0.4; }
                         } else {
                             // string mapping
                             const s = String(v).trim().toLowerCase();
                             if (s.match(/forte|high|élevé|eleve|elev/)) { color = '#d73027'; fillOpacity = 0.8; }
-                            else if (s.match(/moyenne|mean|moyen|moderate/)) { color = '#fcf11bff'; fillOpacity = 0.6; }
-                            else if (s.match(/faible|low|faibl/)) { color = '#4575b4'; fillOpacity = 0.4; }
+                            else if (s.match(/moyenne|mean|moyen|moderate/)) { color = '#4575b4'; fillOpacity = 0.6; }
+                            else if (s.match(/faible|low|faibl/)) { color = '#fcf11bff'; fillOpacity = 0.4; }
                             else {
                                 // unknown string -> deterministic color by hashing string
                                 const str = s || (found.key + '::' + JSON.stringify(v));

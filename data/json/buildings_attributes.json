@@ -1,0 +1,1536 @@
+{
+    "id": "ch.bfs.gebaeude_wohnungs_register",
+    "name": "RegBL: statut du b\u00e2timent",
+    "fields": [
+        {
+            "name": "wstat",
+            "type": "SMALLINT",
+            "alias": "Statut du logement",
+            "values": [
+                [
+                    3004
+                ],
+                [
+                    3004,
+                    3004
+                ],
+                null,
+                [
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004
+                ],
+                [
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004,
+                    3004
+                ]
+            ]
+        },
+        {
+            "name": "wbez",
+            "type": "VARCHAR",
+            "alias": "Situation sur l'\u00e9tage",
+            "values": [
+                [
+                    null
+                ],
+                [
+                    null,
+                    null
+                ],
+                null,
+                [
+                    "mitte",
+                    "links",
+                    "links",
+                    "mitte",
+                    "mitte",
+                    "mitte",
+                    "Links aussen",
+                    "mitte",
+                    "Links aussen",
+                    "links",
+                    "links",
+                    "mitte",
+                    "rechts",
+                    "links",
+                    "Links aussen",
+                    "Links aussen",
+                    "links",
+                    "mitte",
+                    "links",
+                    "rechts",
+                    "rechts",
+                    "rechts",
+                    "rechts",
+                    "links",
+                    "links",
+                    "rechts",
+                    "links",
+                    "rechts",
+                    "mitte",
+                    "rechts",
+                    "mitte",
+                    "mitte"
+                ],
+                [
+                    "Nord-ost",
+                    "S\u00fcd-west"
+                ]
+            ]
+        },
+        {
+            "name": "strsp",
+            "type": "VARCHAR",
+            "alias": "Langue du nom de rue",
+            "values": [
+                [
+                    "DE"
+                ],
+                [
+                    "FR"
+                ],
+                [
+                    "FR",
+                    "DE"
+                ],
+                [
+                    "IT"
+                ],
+                [
+                    "RO"
+                ]
+            ]
+        },
+        {
+            "name": "gwaerzw2",
+            "type": "SMALLINT",
+            "alias": "G\u00e9n\u00e9rateur de chaleur pour l'eau chaude 2",
+            "values": [
+                null,
+                7600,
+                7620,
+                7699,
+                7610
+            ]
+        },
+        {
+            "name": "gazzi",
+            "type": "SMALLINT",
+            "alias": "Nombre de pi\u00e8ces d\u2019hab. ind\u00e9p.",
+            "values": [
+                null,
+                7
+            ]
+        },
+        {
+            "name": "gbez",
+            "type": "VARCHAR",
+            "alias": "Nom du b\u00e2timent",
+            "values": [
+                "",
+                "Alph\u00fctte Hohfl\u00e4sch",
+                "Alterssiedlung",
+                "Geb\u00e4ude",
+                "Residenza al Mulino"
+            ]
+        },
+        {
+            "name": "gbaup",
+            "type": "SMALLINT",
+            "alias": "Epoque de construction",
+            "values": [
+                8012,
+                8015,
+                8021,
+                null,
+                8013
+            ]
+        },
+        {
+            "name": "gschutzr",
+            "type": "SMALLINT",
+            "alias": "Abri de protection civile",
+            "values": [
+                null,
+                0,
+                1
+            ]
+        },
+        {
+            "name": "wkche",
+            "type": "SMALLINT",
+            "alias": "Cuisine",
+            "values": [
+                [
+                    1
+                ],
+                [
+                    1,
+                    1
+                ],
+                null,
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ]
+            ]
+        },
+        {
+            "name": "gexpdat",
+            "type": "DATETIME",
+            "alias": "Publication des donn\u00e9es",
+            "values": [
+                "01.12.2025"
+            ]
+        },
+        {
+            "name": "ggdenr",
+            "type": "SMALLINT",
+            "alias": "N\u00b0 OFS de la commune",
+            "values": [
+                2238,
+                4001,
+                4253,
+                5399,
+                6202
+            ]
+        },
+        {
+            "name": "gwaerdath2",
+            "type": "DATETIME",
+            "alias": "Date de mise \u00e0 jour pour le chauffage 2",
+            "values": [
+                "-",
+                "02.05.2024",
+                "03.02.2023",
+                "11.08.2022",
+                "29.11.2001"
+            ]
+        },
+        {
+            "name": "gastw",
+            "type": "SMALLINT",
+            "alias": "Nombre de niveaux",
+            "values": [
+                2,
+                3,
+                null,
+                4,
+                5
+            ]
+        },
+        {
+            "name": "egid",
+            "type": "VARCHAR",
+            "alias": "Id. f\u00e9d\u00e9ral de b\u00e2timent (EGID)",
+            "values": [
+                "11198126",
+                "190189937",
+                "263039783",
+                "504216659",
+                "605591"
+            ]
+        },
+        {
+            "name": "egrid",
+            "type": "VARCHAR",
+            "alias": "Id. f\u00e9d\u00e9ral d'immeuble (EGRID)",
+            "values": [
+                "CH279492121027",
+                "CH297779266652",
+                "CH467006339751",
+                "CH630299071824",
+                "CH815298237728"
+            ]
+        },
+        {
+            "name": "dplzname",
+            "type": "VARCHAR",
+            "alias": "Localit\u00e9",
+            "values": [
+                "Aarau",
+                "Ependes FR",
+                "Magden",
+                "Vogorno",
+                "Wiler (L\u00f6tschen)"
+            ]
+        },
+        {
+            "name": "gkode",
+            "type": "FLOAT",
+            "alias": "Coordonn\u00e9e E du b\u00e2timent",
+            "values": [
+                2577756.014,
+                2626254.554,
+                2628586.004,
+                2645495.755,
+                2709444.258
+            ]
+        },
+        {
+            "name": "ewid",
+            "type": "SMALLINT",
+            "alias": "Id. f\u00e9d\u00e9ral de logement (EWID)",
+            "values": [
+                [
+                    "1"
+                ],
+                [
+                    "1",
+                    "2"
+                ],
+                null,
+                [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9",
+                    "10",
+                    "11",
+                    "12",
+                    "13",
+                    "14",
+                    "15",
+                    "16",
+                    "17",
+                    "18",
+                    "19",
+                    "20",
+                    "21",
+                    "22",
+                    "23",
+                    "24",
+                    "25",
+                    "26",
+                    "27",
+                    "28",
+                    "29",
+                    "30",
+                    "31",
+                    "32"
+                ],
+                [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9",
+                    "10",
+                    "11"
+                ]
+            ]
+        },
+        {
+            "name": "gwaerdatw2",
+            "type": "DATETIME",
+            "alias": "Date de mise \u00e0 jour pour l'eau chaude 2",
+            "values": [
+                "-",
+                "01.10.2008",
+                "02.05.2024",
+                "03.02.2023",
+                "11.08.2022"
+            ]
+        },
+        {
+            "name": "gkat",
+            "type": "SMALLINT",
+            "alias": "Cat\u00e9gorie de b\u00e2timent",
+            "values": [
+                1020,
+                1030,
+                1040,
+                1060,
+                1080
+            ]
+        },
+        {
+            "name": "whgnr",
+            "type": "VARCHAR",
+            "alias": "N\u00b0 administratif de logement",
+            "values": [
+                [
+                    null
+                ],
+                [
+                    null,
+                    null
+                ],
+                null,
+                [
+                    "403",
+                    "1",
+                    "2",
+                    "4",
+                    "104",
+                    "203",
+                    "307",
+                    "204",
+                    "107",
+                    "101",
+                    "201",
+                    "3",
+                    "205",
+                    "202",
+                    "407",
+                    "207",
+                    "302",
+                    "304",
+                    "401",
+                    "305",
+                    "106",
+                    "406",
+                    "206",
+                    "402",
+                    "102",
+                    "405",
+                    "301",
+                    "105",
+                    "404",
+                    "306",
+                    "303",
+                    "103"
+                ],
+                [
+                    "1"
+                ]
+            ]
+        },
+        {
+            "name": "gwaerdatw1",
+            "type": "DATETIME",
+            "alias": "Date de mise \u00e0 jour pour l'eau chaude 1",
+            "values": [
+                "-",
+                "02.05.2012",
+                "05.03.2020",
+                "16.03.2009",
+                "29.11.2001"
+            ]
+        },
+        {
+            "name": "gvolsce",
+            "type": "SMALLINT",
+            "alias": "Volume du b\u00e2timent : indication sur la donn\u00e9e",
+            "values": [
+                null,
+                869,
+                859,
+                857
+            ]
+        },
+        {
+            "name": "gbauj",
+            "type": "SMALLINT",
+            "alias": "Ann\u00e9e de construction du b\u00e2timent",
+            "values": [
+                2009,
+                null,
+                1959,
+                2024,
+                2000
+            ]
+        },
+        {
+            "name": "gklas",
+            "type": "SMALLINT",
+            "alias": "Classe de b\u00e2timent",
+            "values": [
+                1110,
+                1121,
+                1231,
+                1251,
+                1278
+            ]
+        },
+        {
+            "name": "ggdename",
+            "type": "VARCHAR",
+            "alias": "Nom le la commune",
+            "values": [
+                "Aarau",
+                "Bois-d'Amont",
+                "Magden",
+                "Verzasca",
+                "Wiler (L\u00f6tschen)"
+            ]
+        },
+        {
+            "name": "genw2",
+            "type": "SMALLINT",
+            "alias": "Source d'\u00e9nergie / de chaleur pour l'eau chaude 2",
+            "values": [
+                null,
+                7500,
+                7570,
+                7599,
+                7598
+            ]
+        },
+        {
+            "name": "ltyp",
+            "type": "SMALLINT",
+            "alias": "Type d'immeuble",
+            "values": [
+                null
+            ]
+        },
+        {
+            "name": "gwaerzh2",
+            "type": "SMALLINT",
+            "alias": "G\u00e9n\u00e9rateur de chaleur pour le chauffage 2",
+            "values": [
+                null,
+                7400,
+                7420,
+                7433,
+                7410
+            ]
+        },
+        {
+            "name": "wmehrg",
+            "type": "SMALLINT",
+            "alias": "Logement sur plusieurs \u00e9tages",
+            "values": [
+                [
+                    0
+                ],
+                [
+                    1,
+                    0
+                ],
+                null,
+                [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    1
+                ]
+            ]
+        },
+        {
+            "name": "plz_plz6",
+            "type": "VARCHAR",
+            "alias": "NPA/NPA6",
+            "values": [
+                "1731/173100",
+                "3918/391800",
+                "4312/431200",
+                "5000/500000",
+                "6632/663200"
+            ]
+        },
+        {
+            "name": "esid",
+            "type": "INTEGER",
+            "alias": "Id. f\u00e9d\u00e9ral de rue (ESID)",
+            "values": [
+                10052671,
+                10095640,
+                10124052,
+                10209646,
+                10237414
+            ]
+        },
+        {
+            "name": "egaid",
+            "type": "INTEGER",
+            "alias": "Id. f\u00e9d\u00e9ral d\u2019adresse de b\u00e2timent (EGAID)",
+            "values": [
+                100364883,
+                101412840,
+                101605606,
+                102579540,
+                103612228
+            ]
+        },
+        {
+            "name": "dkodn",
+            "type": "FLOAT",
+            "alias": "Coordonn\u00e9e N de l'entr\u00e9e",
+            "values": [
+                1120125.35,
+                1140678.795,
+                1177778.518,
+                1248896.119,
+                1264107.587
+            ]
+        },
+        {
+            "name": "wstwk",
+            "type": "SMALLINT",
+            "alias": "Etage",
+            "values": [
+                [
+                    3100
+                ],
+                [
+                    3100,
+                    3101
+                ],
+                null,
+                [
+                    3104,
+                    3100,
+                    3100,
+                    3100,
+                    3101,
+                    3102,
+                    3103,
+                    3102,
+                    3101,
+                    3101,
+                    3102,
+                    3100,
+                    3102,
+                    3102,
+                    3104,
+                    3102,
+                    3103,
+                    3103,
+                    3104,
+                    3103,
+                    3101,
+                    3104,
+                    3102,
+                    3104,
+                    3101,
+                    3104,
+                    3103,
+                    3101,
+                    3104,
+                    3103,
+                    3103,
+                    3101
+                ],
+                [
+                    3102
+                ]
+            ]
+        },
+        {
+            "name": "gvolnorm",
+            "type": "SMALLINT",
+            "alias": "Volume du b\u00e2timent : norme",
+            "values": [
+                null,
+                962,
+                961,
+                969
+            ]
+        },
+        {
+            "name": "strname",
+            "type": "VARCHAR",
+            "alias": "D\u00e9signation de la rue",
+            "values": [
+                [
+                    "Chemin du Pra Wild"
+                ],
+                [
+                    "H\u00f6henweg"
+                ],
+                [
+                    "Maispracherstrasse"
+                ],
+                [
+                    "Schachenallee"
+                ],
+                [
+                    "Via Sant'Antonio"
+                ]
+            ]
+        },
+        {
+            "name": "wazim",
+            "type": "SMALLINT",
+            "alias": "Nombre de pi\u00e8ces",
+            "values": [
+                [
+                    1,
+                    1
+                ],
+                [
+                    5
+                ],
+                null,
+                [
+                    6
+                ],
+                [
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2
+                ]
+            ]
+        },
+        {
+            "name": "wbauj",
+            "type": "SMALLINT",
+            "alias": "Ann\u00e9e de construction du logement",
+            "values": [
+                [
+                    1999,
+                    1999
+                ],
+                [
+                    2009
+                ],
+                null,
+                [
+                    1999
+                ],
+                [
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024,
+                    2024
+                ]
+            ]
+        },
+        {
+            "name": "strindx",
+            "type": "VARCHAR",
+            "alias": "R\u00e9f\u00e9rence de l'index",
+            "values": [
+                [
+                    "Ant"
+                ],
+                [
+                    "H\u00f6h"
+                ],
+                [
+                    "Mai"
+                ],
+                [
+                    "Pra"
+                ],
+                [
+                    "Sch"
+                ]
+            ]
+        },
+        {
+            "name": "genh1",
+            "type": "SMALLINT",
+            "alias": "Source d'\u00e9nergie / de chaleur pour le chauffage 1",
+            "values": [
+                7560,
+                7598,
+                null,
+                7530,
+                7500
+            ]
+        },
+        {
+            "name": "dkode",
+            "type": "FLOAT",
+            "alias": "Coordonn\u00e9e E de l'entr\u00e9e",
+            "values": [
+                2577759.844,
+                2626251.702,
+                2628593.094,
+                2645495.782,
+                2709442.241
+            ]
+        },
+        {
+            "name": "warea",
+            "type": "SMALLINT",
+            "alias": "Surface du logement  [m2]",
+            "values": [
+                [
+                    20,
+                    30
+                ],
+                [
+                    179
+                ],
+                null,
+                [
+                    260
+                ],
+                [
+                    46,
+                    48,
+                    48,
+                    48,
+                    46,
+                    46,
+                    60,
+                    46,
+                    46,
+                    46,
+                    46,
+                    48,
+                    46,
+                    46,
+                    46,
+                    60,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46,
+                    46
+                ]
+            ]
+        },
+        {
+            "name": "gksce",
+            "type": "SMALLINT",
+            "alias": "Provenance des coordonn\u00e9es",
+            "values": [
+                901,
+                904,
+                905,
+                909
+            ]
+        },
+        {
+            "name": "gwaerscew1",
+            "type": "SMALLINT",
+            "alias": "Source d\u2018information pour l'eau chaude 1",
+            "values": [
+                864,
+                869,
+                null,
+                860,
+                865
+            ]
+        },
+        {
+            "name": "wabbj",
+            "type": "SMALLINT",
+            "alias": "Ann\u00e9e de d\u00e9molition du logement",
+            "values": [
+                [
+                    null
+                ],
+                [
+                    null,
+                    null
+                ],
+                null,
+                [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ]
+            ]
+        },
+        {
+            "name": "gwaersceh2",
+            "type": "SMALLINT",
+            "alias": "Source d\u2018information pour le chauffage 2",
+            "values": [
+                null,
+                860,
+                869,
+                865,
+                855
+            ]
+        },
+        {
+            "name": "lparz",
+            "type": "VARCHAR",
+            "alias": "N\u00b0 d'immeuble",
+            "values": [
+                "1433",
+                "1587",
+                "251",
+                "3453",
+                "612"
+            ]
+        },
+        {
+            "name": "gstat",
+            "type": "SMALLINT",
+            "alias": "Statut du b\u00e2timent",
+            "values": [
+                1001,
+                1004
+            ]
+        },
+        {
+            "name": "ganzwhg",
+            "type": "SMALLINT",
+            "alias": "Nombre d'enregistrements \"logements\"",
+            "values": [
+                1,
+                2,
+                null,
+                32,
+                11
+            ]
+        },
+        {
+            "name": "dplzz",
+            "type": "SMALLINT",
+            "alias": "Chiffre compl. du NPA",
+            "values": [
+                0,
+                1,
+                2,
+                3,
+                7
+            ]
+        },
+        {
+            "name": "dexpdat",
+            "type": "DATETIME",
+            "alias": "\u00c9tat des donn\u00e9es",
+            "values": [
+                "01.12.2025"
+            ]
+        },
+        {
+            "name": "gkodn",
+            "type": "FLOAT",
+            "alias": "Coordonn\u00e9e N du b\u00e2timent",
+            "values": [
+                1120128.18,
+                1140679.983,
+                1177776.997,
+                1248896.114,
+                1264106.44
+            ]
+        },
+        {
+            "name": "garea",
+            "type": "INTEGER",
+            "alias": "Surface du b\u00e2timent [m2]",
+            "values": [
+                37,
+                45,
+                79,
+                232,
+                476
+            ]
+        },
+        {
+            "name": "gbaum",
+            "type": "SMALLINT",
+            "alias": "Mois de construction du b\u00e2timent",
+            "values": [
+                null,
+                4,
+                9,
+                7,
+                12
+            ]
+        },
+        {
+            "name": "gabbj",
+            "type": "SMALLINT",
+            "alias": "Ann\u00e9e de d\u00e9molition du b\u00e2timent",
+            "values": [
+                null
+            ]
+        },
+        {
+            "name": "gwaerzh1",
+            "type": "SMALLINT",
+            "alias": "G\u00e9n\u00e9rateur de chaleur pour le chauffage 1",
+            "values": [
+                7410,
+                7452,
+                null,
+                7430,
+                7400
+            ]
+        },
+        {
+            "name": "gwaerzw1",
+            "type": "SMALLINT",
+            "alias": "G\u00e9n\u00e9rateur de chaleur pour l'eau chaude 1",
+            "values": [
+                7650,
+                null,
+                7630,
+                7600,
+                7610
+            ]
+        },
+        {
+            "name": "dplz4",
+            "type": "SMALLINT",
+            "alias": "NPA",
+            "values": [
+                1731,
+                3918,
+                4312,
+                5000,
+                6632
+            ]
+        },
+        {
+            "name": "edid",
+            "type": "SMALLINT",
+            "alias": "Id. f\u00e9d\u00e9ral d\u2019entr\u00e9e (EDID)",
+            "values": [
+                "0",
+                "4"
+            ]
+        },
+        {
+            "name": "lparzsx",
+            "type": "BIGINT",
+            "alias": "Suffixe du n\u00b0 d'immeuble",
+            "values": [
+                null
+            ]
+        },
+        {
+            "name": "gwaersceh1",
+            "type": "SMALLINT",
+            "alias": "Source d\u2018information pour le chauffage 1",
+            "values": [
+                864,
+                null,
+                869,
+                860,
+                865
+            ]
+        },
+        {
+            "name": "gwaerscew2",
+            "type": "SMALLINT",
+            "alias": "Source d\u2018information pour l'eau chaude 2",
+            "values": [
+                null,
+                869,
+                865,
+                860,
+                855
+            ]
+        },
+        {
+            "name": "id",
+            "type": "VARCHAR",
+            "alias": "ch.bfs.gebaeude_wohnungs_register.id",
+            "values": [
+                "11198126_0",
+                "190189937_0",
+                "263039783_0",
+                "504216659_0",
+                "605591_0"
+            ]
+        },
+        {
+            "name": "strname_deinr",
+            "type": "VARCHAR",
+            "alias": "Rue no",
+            "values": [
+                "Chemin du Pra Wild 4",
+                "H\u00f6henweg 79",
+                "Maispracherstrasse 34",
+                "Schachenallee 29d",
+                "Via Sant'Antonio 134"
+            ]
+        },
+        {
+            "name": "gebf",
+            "type": "INTEGER",
+            "alias": "Surface de r\u00e9f\u00e9rence \u00e9nerg\u00e9tique",
+            "values": [
+                null,
+                3000,
+                1352,
+                511,
+                228
+            ]
+        },
+        {
+            "name": "genh2",
+            "type": "SMALLINT",
+            "alias": "Source d'\u00e9nergie / de chaleur pour le chauffage 2",
+            "values": [
+                null,
+                7500,
+                7570,
+                7501,
+                7520
+            ]
+        },
+        {
+            "name": "deinr",
+            "type": "VARCHAR",
+            "alias": "N\u00b0 d\u2019entr\u00e9e du b\u00e2timent",
+            "values": [
+                "134",
+                "29d",
+                "34",
+                "4",
+                "79"
+            ]
+        },
+        {
+            "name": "stroffiziel",
+            "type": "VARCHAR",
+            "alias": "D\u00e9signation officielle",
+            "values": [
+                "",
+                "1"
+            ]
+        },
+        {
+            "name": "gebnr",
+            "type": "VARCHAR",
+            "alias": "N\u00b0 officiel de b\u00e2timent",
+            "values": [
+                "",
+                "1433a",
+                "3567",
+                "382",
+                "7823"
+            ]
+        },
+        {
+            "name": "weinr",
+            "type": "VARCHAR",
+            "alias": "N\u00b0 physique de logement",
+            "values": [
+                [
+                    null
+                ],
+                [
+                    null,
+                    null
+                ],
+                null,
+                [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ]
+            ]
+        },
+        {
+            "name": "strnamk",
+            "type": "VARCHAR",
+            "alias": "D\u00e9signation abr\u00e9g\u00e9e de la rue",
+            "values": [
+                [
+                    "Ch. du Pra Wild"
+                ],
+                [
+                    "H\u00f6henweg"
+                ],
+                [
+                    "Maispracherstr."
+                ],
+                [
+                    "Schachenallee"
+                ],
+                [
+                    "Via Sant'Antonio"
+                ]
+            ]
+        },
+        {
+            "name": "gwaerdath1",
+            "type": "DATETIME",
+            "alias": "Date de mise \u00e0 jour pour le chauffage 1",
+            "values": [
+                "-",
+                "02.05.2012",
+                "03.05.2023",
+                "05.03.2020",
+                "29.11.2001"
+            ]
+        },
+        {
+            "name": "lgbkr",
+            "type": "SMALLINT",
+            "alias": "N\u00b0 de secteur du RF",
+            "values": [
+                0,
+                7,
+                261,
+                606,
+                2189
+            ]
+        },
+        {
+            "name": "gvol",
+            "type": "INTEGER",
+            "alias": "Volume du b\u00e2timent [m3]",
+            "values": [
+                null,
+                1040,
+                9000,
+                5094,
+                4125
+            ]
+        },
+        {
+            "name": "genw1",
+            "type": "SMALLINT",
+            "alias": "Source d'\u00e9nergie / de chaleur pour l'eau chaude 1",
+            "values": [
+                7560,
+                null,
+                7530,
+                7500,
+                7598
+            ]
+        },
+        {
+            "name": "gdekt",
+            "type": "VARCHAR",
+            "alias": "Abr\u00e9viation du canton",
+            "values": [
+                "AG",
+                "FR",
+                "SZ",
+                "TI",
+                "VS"
+            ]
+        },
+        {
+            "name": "doffadr",
+            "type": "SMALLINT",
+            "alias": "Adresse officielle",
+            "values": [
+                0,
+                1
+            ]
+        },
+        {
+            "name": "wexpdat",
+            "type": "DATETIME",
+            "alias": "\u00c9tat des donn\u00e9es",
+            "values": [
+                [
+                    "2025-12-01T00:00:00"
+                ],
+                [
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00"
+                ],
+                null,
+                [
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00"
+                ],
+                [
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00",
+                    "2025-12-01T00:00:00"
+                ]
+            ]
+        }
+    ]
+}

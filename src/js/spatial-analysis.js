@@ -76,14 +76,21 @@ async function extractDataInsidePolygon(polygon, buildingsLayer, hazardLayer) {
             const analyzedTable = analysisLayers.buildingsAnalyzed.map((building, index) => ({
                 Index: index + 1,
                 'EGID': building.buildingProperties?.EGID || 'N/A',
-                'Building Name': building.buildingProperties?.GGDENAME || 'N/A',
-                'Canton': building.buildingProperties?.GDEKT || 'N/A',
-                'Class': building.buildingProperties?.GKLAS || 'N/A',
-                'Category': building.buildingProperties?.GKAT || 'N/A',
-                'Construction Year': building.buildingProperties?.GBAUJ || 'N/A',
-                'Area (m²)': building.buildingProperties?.GAREA || 'N/A',
-                'Volume (m³)': building.buildingProperties?.GVOL || 'N/A',
-                'Apartments': building.buildingProperties?.GANZWHG || 'N/A',
+                'Commune (GGDENAME)': building.buildingProperties?.GGDENAME || 'N/A',
+                'Canton (GDEKT)': building.buildingProperties?.GDEKT || 'N/A',
+                'Category (GKAT)': building.buildingProperties?.GKAT || 'N/A',
+                'Class (GKLAS)': building.buildingProperties?.GKLAS || 'N/A',
+                'Construction Year (GBAUJ)': building.buildingProperties?.GBAUJ || 'N/A',
+                'Construction Period (GBAUP)': building.buildingProperties?.GBAUP || 'N/A',
+                'Construction Period Year': building.buildingProperties?.GBAUP_YEAR || 'N/A',
+                'Area (GAREA)': building.buildingProperties?.GAREA || 'N/A',
+                'Volume (GVOL)': building.buildingProperties?.GVOL || 'N/A',
+                'Volume SCE (GVOLSCE)': building.buildingProperties?.GVOLSCE || 'N/A',
+                'Floors (GASTW)': building.buildingProperties?.GASTW || 'N/A',
+                'Apartments (GANZWHG)': building.buildingProperties?.GANZWHG || 'N/A',
+                'Status (GSTAT)': building.buildingProperties?.GSTAT || 'N/A',
+                'Coordinate E (GKODE)': building.buildingProperties?.GKODE || 'N/A',
+                'Coordinate N (GKODN)': building.buildingProperties?.GKODN || 'N/A',
                 'Hazard Type': building.hazardType || 'N/A',
                 'Hazard Recurrence': building.recurrence || 'None',
                 'Hazard Intensity': building.intensity || 'None',
@@ -327,16 +334,26 @@ function findBuildingHazardIntersection(buildingPoint, hazardLayer) {
                     const intensityFields = ['classe_d_intensites', 'intensity_', 'intensity', 'intensite', 'intensitat', 'intensite_debris_flow'];
                     for (const field of intensityFields) {
                         if (props[field] && props[field] !== null && props[field] !== undefined && props[field] !== '') {
-                            hazardInfo.intensity = props[field];
-                            break;
+                            const intensity = String(props[field]).toLowerCase().trim();
+                            // Skip aucune_atteinte intensities (safety check)
+                            if (intensity !== 'aucune_atteinte' && intensity !== 'aucune atteinte') {
+                                hazardInfo.intensity = props[field];
+                                break;
+                            }
                         }
                     }
                     
-                    // Store the overlapping hazard with all properties
-                    hazardInfo.overlappingHazards.push({
-                        properties: props,
-                        geometry: feature.geometry
-                    });
+                    // Store the overlapping hazard with all properties (exclude aucune_atteinte)
+                    const hasValidIntensity = hazardInfo.intensity && 
+                        String(hazardInfo.intensity).toLowerCase().trim() !== 'aucune_atteinte' && 
+                        String(hazardInfo.intensity).toLowerCase().trim() !== 'aucune atteinte';
+                    
+                    if (hasValidIntensity) {
+                        hazardInfo.overlappingHazards.push({
+                            properties: props,
+                            geometry: feature.geometry
+                        });
+                    }
                 }
             }
         } catch (error) {
@@ -459,8 +476,8 @@ function createAnalysisLayers(polygonGeoJSON, buildingsInside) {
             
             if (intensity && intensity !== 'None') {
                 if (intensity.includes('forte') || intensity.includes('high')) color = '#ff0000';
-                else if (intensity.includes('moyenne') || intensity.includes('medium')) color = '#ff8800';
-                else if (intensity.includes('faible') || intensity.includes('low')) color = '#ffff00';
+                else if (intensity.includes('moyenne') || intensity.includes('medium')) color = '#4575b4';
+                else if (intensity.includes('faible') || intensity.includes('low')) color = '#fcf11bff';
             }
             
             return L.circleMarker(latlng, {
@@ -488,34 +505,41 @@ function createAnalysisLayers(polygonGeoJSON, buildingsInside) {
                 buildingProps = buildingsAnalyzed[analysisIndex].buildingProperties || {};
             }
             
-            // Create detailed popup with building and hazard information
-            let popupContent = `<div class="building-analysis-popup">
-                <h6><strong>🏢 Building Analysis Result</strong></h6>
-                
-                <div class="building-info">
-                    <h7><strong>Building Information:</strong></h7>
-                    <p><strong>EGID:</strong> ${buildingProps.EGID || 'N/A'}</p>
-                    <p><strong>Building Name:</strong> ${buildingProps.GGDENAME || 'N/A'}</p>
-                    <p><strong>Canton:</strong> ${buildingProps.GDEKT || 'N/A'}</p>
-                    <p><strong>Building Category:</strong> ${buildingProps.GKAT || 'N/A'}</p>
-                    <p><strong>Building Class:</strong> ${buildingProps.GKLAS || 'N/A'}</p>
-                    <p><strong>Construction Year:</strong> ${buildingProps.GBAUJ || 'N/A'}</p>
-                    <p><strong>Building Area:</strong> ${buildingProps.GAREA || 'N/A'} m²</p>
-                    <p><strong>Building Volume:</strong> ${buildingProps.GVOL || 'N/A'} m³</p>
-                    <p><strong>Number of Apartments:</strong> ${buildingProps.GANZWHG || 'N/A'}</p>
+            // Create detailed popup matching GeoAdmin popup style with all attributes
+            let popupContent = `<div class="building-popup-expanded">
+                <div class="popup-header">🏢 Building Analysis Result</div>
+                <div class="popup-content">
+                    <div class="popup-section">
+                        <div class="section-title">Building Information</div>
+                        <div class="popup-row"><span class="label">EGID:</span> <span class="value">${buildingProps.EGID || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Construction Period (GBAUP):</span> <span class="value">${buildingProps.GBAUP || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Number of Floors (GASTW):</span> <span class="value">${buildingProps.GASTW || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Commune (GGDENAME):</span> <span class="value">${buildingProps.GGDENAME || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Canton (GDEKT):</span> <span class="value">${buildingProps.GDEKT || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Coordinate E (GKODE):</span> <span class="value">${buildingProps.GKODE || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Coordinate N (GKODN):</span> <span class="value">${buildingProps.GKODN || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Category (GKAT):</span> <span class="value">${buildingProps.GKAT || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Volume SCE (GVOLSCE):</span> <span class="value">${buildingProps.GVOLSCE || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Construction Year (GBAUJ):</span> <span class="value">${buildingProps.GBAUJ || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Building Class (GKLAS):</span> <span class="value">${buildingProps.GKLAS || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Building Area (GAREA):</span> <span class="value">${buildingProps.GAREA || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Status (GSTAT):</span> <span class="value">${buildingProps.GSTAT || 'N/A'}</span></div>
+                    </div>
+                    
+                    <div class="popup-section">
+                        <div class="section-title">Hazard Information</div>
+                        <div class="popup-row"><span class="label">Hazard Type:</span> <span class="value">${props.hazardType || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Intensity:</span> <span class="value">${props.intensity || 'N/A'}</span></div>
+                        <div class="popup-row"><span class="label">Recurrence Period:</span> <span class="value">${props.recurrence || 'N/A'}</span></div>
+                    </div>
+                    
+                    <div class="popup-section">
+                        <div class="section-title">Analysis Info</div>
+                        <div class="popup-row"><span class="label">Original Building ID:</span> <span class="value">${props.originalBuildingId}</span></div>
+                        <div class="popup-row"><span class="label">Status:</span> <span class="value">Intersects with hazard zones</span></div>
+                    </div>
                 </div>
-                
-                <div class="hazard-info" style="margin-top: 10px; border-top: 1px solid #ccc; padding-top: 10px;">
-                    <h7><strong>Hazard Information:</strong></h7>
-                    <p><strong>Hazard Type:</strong> ${props.hazardType || 'N/A'}</p>
-                    <p><strong>Intensity:</strong> ${props.intensity || 'N/A'}</p>
-                    <p><strong>Recurrence Period:</strong> ${props.recurrence || 'N/A'}</p>
-                </div>
-                
-                <div class="analysis-info" style="margin-top: 10px; border-top: 1px solid #ccc; padding-top: 10px;">
-                    <p><strong>Original Building ID:</strong> ${props.originalBuildingId}</p>
-                    <p style="font-size: 11px; color: #666;"><em>This building intersects with hazard zones</em></p>
-                </div>
+                <div class="popup-footer">📍 Analysis Result</div>
             </div>`;
             
             layer.bindPopup(popupContent);
@@ -567,16 +591,46 @@ function createBuildingsAnalyzedData(buildingsInside) {
                     }
                 }
                 
+                // Get building properties from window.buildingsData if available (GeoAdmin mapped data)
+                let buildingProperties = building.properties || {};
+                
+                // If we have GeoAdmin buildings data, try to match by coordinates or EGID
+                if (window.buildingsData && Array.isArray(window.buildingsData)) {
+                    const matchedBuilding = window.buildingsData.find(b => {
+                        // Try to match by EGID first
+                        if (b.EGID && building.properties?.egid) {
+                            return String(b.EGID) === String(building.properties.egid);
+                        }
+                        // Try to match by coordinates (approximate)
+                        if (building.geometry && building.geometry.type === 'Point' && b.GKODE && b.GKODN) {
+                            const [lon, lat] = building.geometry.coordinates;
+                            const distance = Math.abs(lon - b.GKODE) + Math.abs(lat - b.GKODN);
+                            return distance < 0.001; // Very small tolerance for coordinate matching
+                        }
+                        return false;
+                    });
+                    
+                    if (matchedBuilding) {
+                        buildingProperties = matchedBuilding;
+                        console.log(`🔍 Found matched GeoAdmin building data for EGID ${matchedBuilding.EGID}`);
+                    } else {
+                        console.warn(`⚠️ No matching GeoAdmin building data found for building`, building.properties);
+                    }
+                }
+                
                 buildingsAnalyzed.push({
                     geometry: building.geometry,
-                    buildingProperties: building.properties,
+                    buildingProperties: buildingProperties,
                     hazardType: hazardInfo.hazardType,
                     recurrence: recurrence,
                     intensity: intensity,
                     hazardProperties: hazardProps,
-                    originalBuildingId: building.properties?.id || building.properties?.EGID || `building_${buildingIndex}`,
+                    originalBuildingId: buildingProperties.EGID || buildingProperties.egid || buildingProperties.id || `building_${buildingIndex}`,
                     hazardIndex: hazardIndex,
-                    totalHazardsForBuilding: hazardInfo.overlappingHazards.length
+                    totalHazardsForBuilding: hazardInfo.overlappingHazards.length,
+                    // Store both EGID formats for compatibility
+                    EGID: buildingProperties.EGID || buildingProperties.egid,
+                    GKLAS: buildingProperties.GKLAS || buildingProperties.klasse
                 });
             });
         }

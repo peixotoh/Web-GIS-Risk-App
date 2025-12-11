@@ -29,7 +29,7 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.01, moyenne: 0.1, forte: 0.3 },
     letalite: { faible: 0, moyenne: 0.0002, forte: 0.06 },
-    classes: ["1212", "1274", "1271"],
+    classes: ["1212", "1274", "1271, 1060"],
     vulnerability_class: 1
   },
   {
@@ -161,7 +161,7 @@ window.buildings = [
     occupation: 0,
     vulnerabilite: { faible: 0.3, moyenne: 0.3, forte: 0.6 },
     letalite: { faible: 0, moyenne: 0.003, forte: 0.2 },
-    classes: ["1276"],
+    classes: ["1276", "1277"],
     vulnerability_class: 2
   },
   {

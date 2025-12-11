@@ -11,11 +11,28 @@
  * - transformSwissToWGS84()
  * - getSelectedHazardType()
  * 
+ * Global Variables Used:
+ * - window.map: Main Leaflet map instance for adding/removing layers
+ * - window.hazardLayer: Current hazard layer on the map (polygons with intensity styling)
+ * - window.buildingsLayer: Current buildings layer on the map (points/polygons with building data)
+ * - window.buildingsData: Raw building data storage for analysis operations
+ * - window.ctlLayers: Leaflet layer control for managing overlay visibility
+ * - window.removeHazardFromMap: Function to remove existing hazard layers
+ * - window.addHazardToMap: Function to add new hazard layers with unified styling
+ * - window.removeOverlayByName: Function to remove specific overlays from layer control
+ * - window.swissToWGS84: Coordinate transformation function (Swiss LV95 → WGS84)
+ * 
  * Dependencies:
  * - Leaflet (L)
- * - Global variables: window.map, window.hazardLayer, window.buildingsLayer
- * - Coordinate transformation functions: swissToWGS84()
- * - Map functions: addHazardToMap(), removeHazardFromMap(), removeOverlayByName()
+ * - FileReader API for file processing
+ * - JSON parsing for GeoJSON validation
+ * 
+ * JSDoc Notation Guide:
+ * @param {Type} name - Description of parameter
+ * @returns {Type|null} - Description of return value (Type|null means can return Type or null)
+ * @example: @returns {string|null} Selected hazard type or null
+ *   - Returns a string containing the hazard type if one is selected
+ *   - Returns null if no hazard type is currently selected
  */
 
 console.log('📊 Data Processing module loading...');
@@ -182,12 +199,12 @@ function loadCustomHazardDataToMap(geojsonData, hazardType) {
                         case 'moyenne':
                         case 'medium':
                         case 'mean':
-                            color = '#fcf11bff';
+                            color = '#4575b4';
                             fillOpacity = 0.6;
                             break;
                         case 'faible':
                         case 'low':
-                            color = '#4575b4';
+                            color = '#fcf11bff';
                             fillOpacity = 0.4;
                             break;
                         default:
@@ -242,12 +259,24 @@ function loadCustomHazardDataToMap(geojsonData, hazardType) {
             }
         });
         
+        // Filter out aucune_atteinte features before adding to map
+        const filteredGeoJSON = {
+            ...transformedGeoJSON,
+            features: transformedGeoJSON.features.filter(feature => {
+                const intensity = feature.properties?.classe_d_intensites || feature.properties?.intensity_ || feature.properties?.intensity || '';
+                const intensityLower = String(intensity).toLowerCase().trim();
+                return intensityLower !== 'aucune_atteinte' && intensityLower !== 'aucune atteinte';
+            })
+        };
+
+        console.log(`🔍 Filtered ${transformedGeoJSON.features.length - filteredGeoJSON.features.length} aucune_atteinte features`);
+
         // Delegate to unified hazard adder so we use single canonical window.hazardLayer
         if (window.map) {
             try {
                 if (typeof window.addHazardToMap === 'function') {
-                    window.addHazardToMap(transformedGeoJSON, hazardType === 'debris-flow' ? 'debris_flow' : hazardType);
-                    console.log(`✅ Custom hazard data loaded with ${transformedGeoJSON.features.length} features`);
+                    window.addHazardToMap(filteredGeoJSON, hazardType === 'debris-flow' ? 'debris_flow' : hazardType);
+                    console.log(`✅ Custom hazard data loaded with ${filteredGeoJSON.features.length} features (filtered out aucune_atteinte)`);
                     alert('✅ Custom hazard data loaded successfully!');
                     
                     // Clear file inputs and labels so the user can upload again (overwrite)

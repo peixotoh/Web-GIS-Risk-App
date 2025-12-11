@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swiss Buildings Map - GeoAdmin API</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 300px;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .building-popup {
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .building-popup .header {
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 8px;
+        }
+        
+        .building-popup .field {
+            margin: 3px 0;
+        }
+        
+        .building-popup .label {
+            font-weight: bold;
+            color: #666;
+        }
+        
+
+        
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 100vh;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            overflow-y: auto;
+            transform: translateX(-280px);
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar.open {
+            transform: translateX(0);
+        }
+        
+        .sidebar-toggle {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 1001;
+            font-size: 16px;
+            transition: left 0.3s ease;
+        }
+        
+        .sidebar.open ~ .sidebar-toggle {
+            left: 295px;
+        }
+        
+        .sidebar-content {
+            padding: 20px;
+        }
+        
+        .sidebar-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .sidebar-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .sidebar h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            color: #333;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 8px;
+        }
+        
+        .sidebar h4 {
+            margin: 15px 0 10px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .hazard-toggles {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .hazard-toggles label {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 0;
+        }
+        
+        .hazard-toggles input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .test-btn {
+            width: 100%;
+            padding: 8px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .test-btn:hover {
+            background: #005999;
+        }
+        
+        .hazard-panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .sidebar h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            color: #333;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 8px;
+        }
+        
+        .sidebar h4 {
+            margin: 15px 0 10px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .hazard-toggles {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .hazard-toggles label {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 0;
+        }
+        
+        .hazard-toggles input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .test-btn {
+            width: 100%;
+            padding: 8px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .test-btn:hover {
+            background: #005999;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Sidebar -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-content">
+            <!-- Buildings Info Section -->
+            <div class="sidebar-section">
+                <h3>🏢 Swiss Buildings</h3>
+                <div class="field">
+                    <span class="label">Zoom Level:</span> <span id="zoom-level">-</span>
+                </div>
+                <div class="field">
+                    <span class="label">Buildings Loaded:</span> <span id="building-count">0</span>
+                </div>
+                <div id="status-container"></div>
+                <div style="font-size: 11px; color: #666; margin-top: 10px;">
+                    🔍 Zoom to level 16+ to load buildings<br>
+                    📍 Data from geo.admin.ch
+                </div>
+            </div>
+            
+            <!-- Hazard Controls Section -->
+            <div class="sidebar-section">
+                <h3>🏔️ Swiss Hazard Maps</h3>
+                <h4>SilvaProtect-CH Hazards</h4>
+                <div class="hazard-toggles">
+                    <label><input type="checkbox" data-hazard="rockfall"> 🪨 Chutes de pierre (Rockfall)</label>
+                    <label><input type="checkbox" data-hazard="debris_flow"> 🌊 Laves torrentielles (Debris Flow)</label>
+                    <label><input type="checkbox" data-hazard="landslide"> ⛰️ Coulées de boue (Mudslides)</label>
+                    <label><input type="checkbox" data-hazard="flood"> 💧 Épandages d'alluvions (Alluvial Deposits)</label>
+                </div>
+                
+                <div style="font-size: 10px; color: #666; margin-top: 10px; padding: 5px; background: #f0f0f0; border-radius: 3px;">
+                    <strong>SilvaProtect-CH:</strong> Swiss forest protection against natural hazards (OFEV/BAFU)
+                </div>
+                
+                <button id="test-hazards-btn" class="test-btn">🧪 Test All Hazards</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar Toggle Button -->
+    <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle Sidebar">
+        ☰
+    </button>
+    
+
+    
+
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin=""></script>
+
+    <script>
+        // Initialize map centered on Switzerland
+        const map = L.map('map').setView([46.8182, 8.2275], 8);
+        
+        // Add Swiss base layer
+        L.tileLayer('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg', {
+            attribution: '© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>',
+            maxZoom: 18,
+        }).addTo(map);
+        
+        // Alternative base layer (OpenStreetMap)
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+        
+        // Layer control
+        const baseLayers = {
+            "Swiss Map": map._layers[Object.keys(map._layers)[0]],
+            "OpenStreetMap": osmLayer
+        };
+        
+        L.control.layers(baseLayers).addTo(map);
+        
+        // Buildings layer group
+        let buildingsLayer = L.layerGroup().addTo(map);
+        let isLoading = false;
+        let currentBounds = null;
+        
+        // UI elements
+        const zoomLevelElement = document.getElementById('zoom-level');
+        const buildingCountElement = document.getElementById('building-count');
+        const statusContainer = document.getElementById('status-container');
+
+        
+        // GeoAdmin API configuration
+        const GEOADMIN_API_BASE = 'https://api3.geo.admin.ch/rest/services/api/MapServer';
+        const BUILDINGS_LAYER = 'ch.bfs.gebaeude_wohnungs_register'; // Swiss Federal Statistical Office buildings layer
+        
+        // Hazard map layers - Official GeoAdmin API layer identifiers (SilvaProtect-CH)
+        const HAZARD_LAYERS = {
+            // Rockfall hazard maps (Chutes de pierre)
+            rockfall: 'ch.bafu.silvaprotect-sturz',
+            
+            // Debris flow / Torrents hazard maps (Laves torrentielles)
+            debris_flow: 'ch.bafu.silvaprotect-murgang',
+            torrents: 'ch.bafu.silvaprotect-murgang', // Same as debris flow
+            
+            // Landslides / Mudslides (Coulées de boue) 
+            landslide: 'ch.bafu.silvaprotect-hangmuren',
+            
+            // Alluvial deposits (Épandages d'alluvions)
+            flood: 'ch.bafu.silvaprotect-uebersarung',
+            
+            // Note: These are the validated SilvaProtect-CH layers
+            // Additional layers can be found using mapDebug.searchLayers() function
+        };
+        
+        // Status management
+        function showStatus(message, type = 'loading') {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusContainer.innerHTML = '';
+            statusContainer.appendChild(statusDiv);
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    statusDiv.remove();
+                }, 3000);
+            }
+        }
+        
+        // Convert Leaflet bounds to Swiss coordinate system (LV95)
+        function leafletBoundsToSwissLV95(bounds) {
+            // Simple conversion - for production use a proper projection library like proj4js
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            
+            // Approximate conversion to Swiss LV95 (EPSG:2056)
+            // Note: This is a simplified conversion. For precise conversion, use proj4js
+            const swissWest = (sw.lng - 6) * 100000 + 2600000;
+            const swissSouth = (sw.lat - 46) * 100000 + 1200000;
+            const swissEast = (ne.lng - 6) * 100000 + 2600000;
+            const swissNorth = (ne.lat - 46) * 100000 + 1200000;
+            
+            return {
+                west: Math.floor(swissWest),
+                south: Math.floor(swissSouth),
+                east: Math.ceil(swissEast),
+                north: Math.ceil(swissNorth)
+            };
+        }
+        
+        // Fetch buildings from GeoAdmin API using identify endpoint
+        async function fetchBuildings(bounds) {
+            if (isLoading) return;
+            
+            isLoading = true;
+            showStatus('🔄 Loading buildings...', 'loading');
+            
+            try {
+                // Convert bounds to Swiss LV95 for better precision
+                const swissBounds = leafletBoundsToSwissLV95(bounds);
+                
+                // Use identify endpoint which works better for spatial queries
+                const url = `${GEOADMIN_API_BASE}/identify?` + new URLSearchParams({
+                    geometryType: 'esriGeometryEnvelope',
+                    geometry: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
+                    mapExtent: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
+                    imageDisplay: '1000,1000,96',
+                    tolerance: 0,
+                    layers: `all:${BUILDINGS_LAYER}`,
+                    returnGeometry: true,
+                    geometryFormat: 'geojson',
+                    sr: '4326', // Use WGS84 for better compatibility
+                    limit: 200
+                });
+                
+                console.log('🔍 Fetching buildings from:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                console.log('📦 Buildings API Response:', data);
+                
+                if (data.results && data.results.length > 0) {
+                    addBuildingsToMap(data.results);
+                    showStatus(`✅ Loaded ${data.results.length} buildings`, 'success');
+                } else {
+                    // Try alternative approach with WMS GetFeatureInfo
+                    await fetchBuildingsWMS(bounds);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error fetching buildings:', error);
+                showStatus(`❌ Error: ${error.message}`, 'error');
+                
+                // Fallback to WMS approach
+                try {
+                    await fetchBuildingsWMS(bounds);
+                } catch (fallbackError) {
+                    console.error('❌ Fallback also failed:', fallbackError);
+                }
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        // Alternative: Fetch buildings using WMS GetFeatureInfo
+        async function fetchBuildingsWMS(bounds) {
+            showStatus('🔄 Trying WMS approach...', 'loading');
+            
+            try {
+                const center = bounds.getCenter();
+                const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+                
+                const url = `https://wms.geo.admin.ch/?` + new URLSearchParams({
+                    SERVICE: 'WMS',
+                    VERSION: '1.3.0',
+                    REQUEST: 'GetFeatureInfo',
+                    LAYERS: BUILDINGS_LAYER,
+                    QUERY_LAYERS: BUILDINGS_LAYER,
+                    INFO_FORMAT: 'application/json',
+                    FEATURE_COUNT: '200',
+                    CRS: 'EPSG:4326',
+                    BBOX: bbox,
+                    WIDTH: '1000',
+                    HEIGHT: '1000',
+                    I: '500', // Center point x
+                    J: '500'  // Center point y
+                });
+                
+                console.log('🔍 Trying WMS GetFeatureInfo:', url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log('📦 WMS Response:', data);
+                
+                if (data.features && data.features.length > 0) {
+                    addBuildingsToMapWMS(data.features);
+                    showStatus(`✅ Loaded ${data.features.length} buildings (WMS)`, 'success');
+                } else {
+                    showStatus('ℹ️ No buildings found in this area', 'success');
+                }
+                
+            } catch (error) {
+                console.error('❌ WMS fetch failed:', error);
+                showStatus('ℹ️ No buildings available for this area', 'success');
+            }
+        }
+        
+
+        
+        // Convert Swiss LV95 coordinates to WGS84
+        function swissLV95ToWGS84(east, north) {
+            // Simplified conversion - for production use proj4js
+            const lng = (east - 2600000) / 100000 + 6;
+            const lat = (north - 1200000) / 100000 + 46;
+            return [lat, lng];
+        }
+        
+        // Add buildings to map (from identify API)
+        function addBuildingsToMap(buildings) {
+            // Clear existing buildings
+            buildingsLayer.clearLayers();
+            
+            let addedCount = 0;
+            
+            buildings.forEach(building => {
+                try {
+                    let geometry = null;
+                    let properties = building.attributes || building.properties || {};
+                    
+                    // Handle geometry from different API responses
+                    if (building.geometry) {
+                        if (building.geometry.type === 'Point' && building.geometry.coordinates) {
+                            // Point geometry - coordinates are already in WGS84 from identify endpoint
+                            geometry = L.circle([building.geometry.coordinates[1], building.geometry.coordinates[0]], {
+                                radius: 8,
+                                fillColor: '#e74c3c',
+                                color: '#c0392b',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.7
+                            });
+                        } else if (building.geometry.type === 'Polygon' && building.geometry.coordinates) {
+                            // Polygon geometry - coordinates are already in WGS84
+                            const coords = building.geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
+                            geometry = L.polygon(coords, {
+                                fillColor: '#3498db',
+                                color: '#2980b9',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.6
+                            });
+                        }
+                    } else if (building.bbox) {
+                        // Create rectangle from bbox (convert if needed)
+                        const sw = [building.bbox[1], building.bbox[0]]; // lat, lng
+                        const ne = [building.bbox[3], building.bbox[2]]; // lat, lng
+                        geometry = L.rectangle([sw, ne], {
+                            fillColor: '#f39c12',
+                            color: '#e67e22',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.6
+                        });
+                    }
+                    
+                    if (geometry) {
+                        // Create popup content
+                        const popupContent = createBuildingPopup(properties);
+                        geometry.bindPopup(popupContent);
+                        
+                        // Add to layer
+                        buildingsLayer.addLayer(geometry);
+                        addedCount++;
+                    }
+                    
+                } catch (error) {
+                    console.warn('⚠️ Error processing building:', error, building);
+                }
+            });
+            
+            // Update building count
+            buildingCountElement.textContent = addedCount;
+            
+            console.log(`✅ Added ${addedCount} buildings to map`);
+        }
+        
+        // Add buildings to map (from WMS GetFeatureInfo)
+        function addBuildingsToMapWMS(features) {
+            // Clear existing buildings
+            buildingsLayer.clearLayers();
+            
+            let addedCount = 0;
+            
+            features.forEach(feature => {
+                try {
+                    let geometry = null;
+                    let properties = feature.properties || {};
+                    
+                    // Handle GeoJSON geometry from WMS
+                    if (feature.geometry) {
+                        if (feature.geometry.type === 'Point') {
+                            geometry = L.circle([feature.geometry.coordinates[1], feature.geometry.coordinates[0]], {
+                                radius: 8,
+                                fillColor: '#27ae60',
+                                color: '#229954',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.7
+                            });
+                        } else if (feature.geometry.type === 'Polygon') {
+                            const coords = feature.geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
+                            geometry = L.polygon(coords, {
+                                fillColor: '#8e44ad',
+                                color: '#7d3c98',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.6
+                            });
+                        }
+                    }
+                    
+                    if (geometry) {
+                        const popupContent = createBuildingPopup(properties);
+                        geometry.bindPopup(popupContent);
+                        buildingsLayer.addLayer(geometry);
+                        addedCount++;
+                    }
+                    
+                } catch (error) {
+                    console.warn('⚠️ Error processing WMS feature:', error, feature);
+                }
+            });
+            
+            buildingCountElement.textContent = addedCount;
+            console.log(`✅ Added ${addedCount} WMS buildings to map`);
+        }
+        
+        // Create building popup content
+        function createBuildingPopup(properties) {
+            const div = document.createElement('div');
+            div.className = 'building-popup';
+            
+            // Building header
+            const header = document.createElement('div');
+            header.className = 'header';
+            header.textContent = `🏢 Building ${properties.egid || properties.EGID || 'Unknown'}`;
+            div.appendChild(header);
+            
+            // Key properties to display
+            const keyFields = [
+                { key: 'egid', label: 'EGID', prop: ['egid', 'EGID'] },
+                { key: 'gklas', label: 'Building Class', prop: ['gklas', 'GKLAS'] },
+                { key: 'gbauj', label: 'Construction Year', prop: ['gbauj', 'GBAUJ'] },
+                { key: 'garea', label: 'Area (m²)', prop: ['garea', 'GAREA'] },
+                { key: 'gvol', label: 'Volume (m³)', prop: ['gvol', 'GVOL'] },
+                { key: 'gastw', label: 'Floors', prop: ['gastw', 'GASTW'] },
+                { key: 'ganzwhg', label: 'Apartments', prop: ['ganzwhg', 'GANZWHG'] },
+                { key: 'ggdename', label: 'Commune', prop: ['ggdename', 'GGDENAME'] }
+            ];
+            
+            keyFields.forEach(field => {
+                let value = null;
+                for (const prop of field.prop) {
+                    if (properties[prop] !== undefined && properties[prop] !== null) {
+                        value = properties[prop];
+                        break;
+                    }
+                }
+                
+                if (value !== null && value !== '') {
+                    const fieldDiv = document.createElement('div');
+                    fieldDiv.className = 'field';
+                    fieldDiv.innerHTML = `<span class="label">${field.label}:</span> ${value}`;
+                    div.appendChild(fieldDiv);
+                }
+            });
+            
+            // Add raw data for debugging (collapsible)
+            const debugDiv = document.createElement('details');
+            debugDiv.innerHTML = `
+                <summary style="cursor: pointer; margin-top: 8px; font-size: 11px; color: #666;">Raw Data</summary>
+                <pre style="font-size: 10px; background: #f8f9fa; padding: 5px; border-radius: 3px; margin: 5px 0; white-space: pre-wrap;">${JSON.stringify(properties, null, 2)}</pre>
+            `;
+            div.appendChild(debugDiv);
+            
+            return div;
+        }
+        
+        // Check if zoom level requires building loading
+        function checkZoomLevel() {
+            const zoom = map.getZoom();
+            zoomLevelElement.textContent = zoom;
+            
+            if (zoom >= 16) {
+                // Load buildings if bounds changed significantly
+                const bounds = map.getBounds();
+                const boundsKey = `${bounds.getNorth().toFixed(4)}_${bounds.getSouth().toFixed(4)}_${bounds.getEast().toFixed(4)}_${bounds.getWest().toFixed(4)}`;
+                
+                if (currentBounds !== boundsKey) {
+                    currentBounds = boundsKey;
+                    fetchBuildings(bounds);
+                }
+            } else {
+                buildingsLayer.clearLayers();
+                buildingCountElement.textContent = '0';
+                currentBounds = null;
+            }
+        }
+        
+        // Event handlers
+        map.on('zoomend', checkZoomLevel);
+        map.on('moveend', checkZoomLevel);
+        
+        // Initial check
+        checkZoomLevel();
+        
+        // Fetch hazard data from GeoAdmin API
+        // Create WMTS tile layer for hazard data (SilvaProtect-CH)
+        function createHazardWMTSLayer(hazardType) {
+            const layer = HAZARD_LAYERS[hazardType];
+            if (!layer) {
+                console.error(`❌ Unknown hazard type: ${hazardType}`);
+                return null;
+            }
+            
+            try {
+                showStatus(`🔄 Loading ${hazardType} hazard layer...`, 'loading');
+                
+                // Create WMTS tile layer using GeoAdmin WMTS endpoint
+                const wmtsLayer = L.tileLayer(`https://wmts.geo.admin.ch/1.0.0/${layer}/default/current/3857/{z}/{x}/{y}.png`, {
+                    attribution: '© OFEV/BAFU - SilvaProtect-CH',
+                    opacity: 0.75, // Match official opacity from layer config
+                    maxZoom: 18,
+                    minZoom: 1
+                });
+                
+                console.log(`✅ Created ${hazardType} WMTS layer: ${layer}`);
+                showStatus(`✅ Loaded ${hazardType} hazard layer`, 'success');
+                
+                return wmtsLayer;
+                
+            } catch (error) {
+                console.error(`❌ Error creating ${hazardType} WMTS layer:`, error);
+                showStatus(`❌ Error loading ${hazardType}: ${error.message}`, 'error');
+                return null;
+            }
+        }
+        
+        // Test function to create all hazard WMTS layers
+        function testAllHazards() {
+            console.log('🧪 Testing all SilvaProtect-CH WMTS layers...');
+            const results = {};
+            
+            for (const [hazardType, layer] of Object.entries(HAZARD_LAYERS)) {
+                console.log(`\n🔍 Testing ${hazardType} (${layer})`);
+                try {
+                    const wmtsLayer = createHazardWMTSLayer(hazardType);
+                    results[hazardType] = {
+                        layer: layer,
+                        status: wmtsLayer ? 'Available' : 'Failed',
+                        wmtsLayer: wmtsLayer,
+                        type: 'WMTS (image tiles only)'
+                    };
+                    console.log(`${wmtsLayer ? '✅' : '❌'} ${hazardType}: ${wmtsLayer ? 'Available (WMTS)' : 'Failed'}`);
+                } catch (error) {
+                    results[hazardType] = {
+                        layer: layer,
+                        status: 'Error',
+                        error: error.message,
+                        type: 'WMTS'
+                    };
+                    console.log(`❌ ${hazardType}: Error - ${error.message}`);
+                }
+            }
+            
+            console.log('\n📊 WMTS Hazard Layers Test Summary:', results);
+            console.log('ℹ️ Note: WMTS layers provide visualization only - no queryable attributes');
+            return results;
+        }
+        
+        // Add some helpful console commands
+        window.mapDebug = {
+            map: map,
+            buildingsLayer: buildingsLayer,
+            fetchBuildings: fetchBuildings,
+            fetchBuildingsWMS: fetchBuildingsWMS,
+            createHazardWMTSLayer: createHazardWMTSLayer,
+            testAllHazards: testAllHazards,
+            checkZoomLevel: checkZoomLevel,
+            HAZARD_LAYERS: HAZARD_LAYERS
+        };
+        
+        // Initialize sidebar
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        
+        // Sidebar toggle functionality
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            this.innerHTML = sidebar.classList.contains('open') ? '✕' : '☰';
+        });
+        
+        // Initialize hazard controls
+        const hazardLayers = {};
+        
+        // Add event listeners for hazard toggles
+        document.querySelectorAll('[data-hazard]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const hazardType = this.dataset.hazard;
+                
+                if (this.checked) {
+                    // Load and display hazard layer
+                    loadHazardLayer(hazardType);
+                } else {
+                    // Remove hazard layer
+                    removeHazardLayer(hazardType);
+                }
+            });
+        });
+        
+        // Add test button functionality
+        document.getElementById('test-hazards-btn').addEventListener('click', function() {
+            console.log('🧪 Starting hazard data test...');
+            testAllHazards();
+        });
+        
+        function loadHazardLayer(hazardType) {
+            try {
+                // Create WMTS layer for hazard data (SilvaProtect-CH)
+                const wmtsLayer = createHazardWMTSLayer(hazardType);
+                
+                if (wmtsLayer) {
+                    // Add to map and store reference
+                    wmtsLayer.addTo(map);
+                    hazardLayers[hazardType] = wmtsLayer;
+                    
+                    console.log(`✅ Added ${hazardType} WMTS layer to map`);
+                    console.log(`ℹ️ Note: WMTS layers are image tiles only - no attribute data available`);
+                }
+            } catch (error) {
+                console.error(`❌ Error loading ${hazardType} layer:`, error);
+            }
+        }
+        
+        function removeHazardLayer(hazardType) {
+            if (hazardLayers[hazardType]) {
+                map.removeLayer(hazardLayers[hazardType]);
+                delete hazardLayers[hazardType];
+                console.log(`🗑️ Removed ${hazardType} layer`);
+            }
+        }
+        
+        function getHazardStyle(hazardType) {
+            const styles = {
+                rockfall: { color: '#8B4513', weight: 2, fillColor: '#D2691E', fillOpacity: 0.3 },
+                rockfall_intensity: { color: '#FF4500', weight: 2, fillColor: '#FF6347', fillOpacity: 0.4 },
+                debris_flow: { color: '#4682B4', weight: 2, fillColor: '#87CEEB', fillOpacity: 0.3 },
+                landslide: { color: '#228B22', weight: 2, fillColor: '#90EE90', fillOpacity: 0.3 },
+                landslide_susceptibility: { color: '#32CD32', weight: 2, fillColor: '#98FB98', fillOpacity: 0.3 },
+                torrents: { color: '#00CED1', weight: 2, fillColor: '#AFEEEE', fillOpacity: 0.3 },
+                torrents_intensity: { color: '#008B8B', weight: 2, fillColor: '#20B2AA', fillOpacity: 0.4 },
+                avalanche: { color: '#F0F8FF', weight: 2, fillColor: '#E6E6FA', fillOpacity: 0.3 },
+                flood: { color: '#0000FF', weight: 2, fillColor: '#ADD8E6', fillOpacity: 0.3 },
+                flood_intensity: { color: '#000080', weight: 2, fillColor: '#4169E1', fillOpacity: 0.4 }
+            };
+            return styles[hazardType] || { color: '#666', weight: 2, fillColor: '#ccc', fillOpacity: 0.3 };
+        }
+        
+        // Function to test if a layer name exists
+        async function testLayerExists(layerName) {
+            try {
+                const url = `https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities`;
+                const response = await fetch(url);
+                const text = await response.text();
+                const exists = text.includes(layerName);
+                console.log(`${exists ? '✅' : '❌'} Layer ${layerName}: ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+                return exists;
+            } catch (error) {
+                console.error(`Error testing layer ${layerName}:`, error);
+                return false;
+            }
+        }
+        
+        // Function to search for layers containing specific keywords
+        async function searchLayers(keyword) {
+            try {
+                console.log(`🔍 Searching for layers containing "${keyword}"...`);
+                const url = `https://api3.geo.admin.ch/rest/services/api/MapServer/layersConfig`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const matches = [];
+                for (const [layerId, layerInfo] of Object.entries(data)) {
+                    if (layerId.toLowerCase().includes(keyword.toLowerCase()) || 
+                        (layerInfo.label && layerInfo.label.toLowerCase().includes(keyword.toLowerCase()))) {
+                        matches.push({
+                            id: layerId,
+                            label: layerInfo.label,
+                            type: layerInfo.type,
+                            topics: layerInfo.topics,
+                            searchable: layerInfo.searchable,
+                            highlightable: layerInfo.highlightable,
+                            tooltip: layerInfo.tooltip
+                        });
+                    }
+                }
+                
+                console.log(`📋 Found ${matches.length} layers matching "${keyword}":`, matches);
+                return matches;
+            } catch (error) {
+                console.error(`Error searching layers:`, error);
+                return [];
+            }
+        }
+        
+        // Comprehensive search for hazard layers (WMS and WMTS)
+        async function findHazardLayers() {
+            console.log('🔍 Comprehensive search for Swiss hazard layers...\n');
+            
+            const hazardKeywords = [
+                'steinschlag', 'rockfall', 'chute',
+                'rutschung', 'landslide', 'glissement',
+                'murgang', 'debris', 'torrent', 'lave',
+                'hochwasser', 'flood', 'inondation',
+                'lawinen', 'avalanche',
+                'hangmure', 'coulée',
+                'gefahr', 'hazard', 'risque',
+                'naturgefahren', 'silvaprotect'
+            ];
+            
+            const allHazardLayers = new Map(); // Use Map to avoid duplicates
+            
+            for (const keyword of hazardKeywords) {
+                const layers = await searchLayers(keyword);
+                layers.forEach(layer => {
+                    if (!allHazardLayers.has(layer.id)) {
+                        allHazardLayers.set(layer.id, layer);
+                    }
+                });
+            }
+            
+            // Organize by type
+            const wmtsLayers = [];
+            const wmsLayers = [];
+            const otherLayers = [];
+            
+            allHazardLayers.forEach(layer => {
+                if (layer.type === 'wmts') {
+                    wmtsLayers.push(layer);
+                } else if (layer.type === 'wms') {
+                    wmsLayers.push(layer);
+                } else {
+                    otherLayers.push(layer);
+                }
+            });
+            
+            console.log(`\n📊 HAZARD LAYERS SUMMARY:`);
+            console.log(`🎯 Total found: ${allHazardLayers.size}`);
+            console.log(`🖼️  WMTS (tiles only): ${wmtsLayers.length}`);
+            console.log(`📡 WMS (queryable): ${wmsLayers.length}`);
+            console.log(`❓ Other types: ${otherLayers.length}\n`);
+            
+            if (wmsLayers.length > 0) {
+                console.log('🎯 WMS HAZARD LAYERS (with queryable attributes):');
+                wmsLayers.forEach((layer, index) => {
+                    console.log(`${index + 1}. ${layer.id}`);
+                    console.log(`   Label: ${layer.label}`);
+                    console.log(`   Searchable: ${layer.searchable ? '✅' : '❌'}`);
+                    console.log(`   Tooltip: ${layer.tooltip ? '✅' : '❌'}`);
+                    console.log(`   Highlightable: ${layer.highlightable ? '✅' : '❌'}\n`);
+                });
+            }
+            
+            if (wmtsLayers.length > 0) {
+                console.log('🖼️  WMTS HAZARD LAYERS (visualization only):');
+                wmtsLayers.slice(0, 10).forEach((layer, index) => { // Show first 10
+                    console.log(`${index + 1}. ${layer.id} - ${layer.label}`);
+                });
+                if (wmtsLayers.length > 10) {
+                    console.log(`   ... and ${wmtsLayers.length - 10} more WMTS layers\n`);
+                }
+            }
+            
+            return {
+                total: allHazardLayers.size,
+                wms: wmsLayers,
+                wmts: wmtsLayers,
+                other: otherLayers,
+                all: Array.from(allHazardLayers.values())
+            };
+        }
+        
+        // Test WMS GetFeatureInfo for a specific layer
+        async function testWMSLayer(layerId) {
+            try {
+                const bounds = map.getBounds();
+                const center = bounds.getCenter();
+                
+                console.log(`🧪 Testing WMS layer: ${layerId}`);
+                
+                const url = `https://wms.geo.admin.ch/?` + new URLSearchParams({
+                    SERVICE: 'WMS',
+                    VERSION: '1.3.0',
+                    REQUEST: 'GetFeatureInfo',
+                    LAYERS: layerId,
+                    QUERY_LAYERS: layerId,
+                    INFO_FORMAT: 'application/json',
+                    FEATURE_COUNT: '10',
+                    CRS: 'EPSG:4326',
+                    BBOX: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
+                    WIDTH: '256',
+                    HEIGHT: '256',
+                    I: '128',
+                    J: '128'
+                });
+                
+                console.log(`🔗 Testing URL: ${url}`);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log(`📦 Response:`, data);
+                
+                if (data.features && data.features.length > 0) {
+                    console.log(`✅ ${layerId}: Found ${data.features.length} features with attributes`);
+                    console.log(`📋 Sample attributes:`, data.features[0].properties);
+                    return { success: true, features: data.features };
+                } else {
+                    console.log(`ℹ️  ${layerId}: No features in current view or not queryable`);
+                    return { success: false, message: 'No features found' };
+                }
+                
+            } catch (error) {
+                console.error(`❌ Error testing ${layerId}:`, error);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // Search official Swiss GeoAdmin data catalog for hazard datasets
+        async function searchDataGeoadmin() {
+            console.log('🔍 Searching official Swiss GeoAdmin data catalog (https://data.geo.admin.ch/)...\n');
+            
+            try {
+                // Try to fetch the catalog API or dataset list
+                const catalogUrl = 'https://data.geo.admin.ch/api/datasets';
+                
+                console.log('🔗 Attempting to access data catalog API...');
+                console.log(`📡 URL: ${catalogUrl}`);
+                
+                let datasets = [];
+                
+                try {
+                    const response = await fetch(catalogUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        datasets = Array.isArray(data) ? data : (data.datasets || []);
+                    } else {
+                        console.log('ℹ️  Direct API access not available, trying alternative approach...');
+                    }
+                } catch (apiError) {
+                    console.log('ℹ️  API fetch failed, trying alternative data sources...');
+                }
+                
+                // Alternative: Search through known STAC catalog endpoints
+                if (datasets.length === 0) {
+                    const stacUrl = 'https://data.geo.admin.ch/api/stac/v0.9.0/collections';
+                    try {
+                        console.log('🔗 Trying STAC API...');
+                        const stacResponse = await fetch(stacUrl);
+                        if (stacResponse.ok) {
+                            const stacData = await stacResponse.json();
+                            datasets = stacData.collections || [];
+                            console.log(`📦 Found ${datasets.length} collections via STAC API`);
+                        }
+                    } catch (stacError) {
+                        console.log('ℹ️  STAC API also not accessible');
+                    }
+                }
+                
+                // Filter for hazard-related datasets
+                const hazardKeywords = [
+                    'steinschlag', 'rockfall', 'chute', 'sturz',
+                    'rutschung', 'landslide', 'glissement', 'hangmure',
+                    'murgang', 'debris', 'torrent', 'lave',
+                    'hochwasser', 'flood', 'inondation', 'crue',
+                    'lawinen', 'avalanche', 'neige',
+                    'gefahr', 'hazard', 'risque', 'danger',
+                    'naturgefahren', 'silvaprotect', 'bafu',
+                    'erosion', 'coulée', 'glissement'
+                ];
+                
+                const hazardDatasets = [];
+                
+                if (datasets.length > 0) {
+                    datasets.forEach(dataset => {
+                        const title = (dataset.title || dataset.name || '').toLowerCase();
+                        const description = (dataset.description || dataset.summary || '').toLowerCase();
+                        const id = (dataset.id || dataset.identifier || '').toLowerCase();
+                        
+                        const isHazardRelated = hazardKeywords.some(keyword => 
+                            title.includes(keyword) || 
+                            description.includes(keyword) || 
+                            id.includes(keyword)
+                        );
+                        
+                        if (isHazardRelated) {
+                            hazardDatasets.push({
+                                id: dataset.id || dataset.identifier,
+                                title: dataset.title || dataset.name,
+                                description: dataset.description || dataset.summary,
+                                keywords: dataset.keywords || [],
+                                formats: dataset.formats || dataset.distribution || [],
+                                spatial_extent: dataset.spatial || dataset.extent,
+                                temporal_extent: dataset.temporal,
+                                license: dataset.license,
+                                provider: dataset.provider || dataset.organization,
+                                url: dataset.url || dataset.homepage
+                            });
+                        }
+                    });
+                }
+                
+                console.log(`\n📊 SWISS GEOADMIN DATA CATALOG RESULTS:`);
+                console.log(`🎯 Total datasets searched: ${datasets.length}`);
+                console.log(`🏔️ Hazard-related datasets found: ${hazardDatasets.length}\n`);
+                
+                if (hazardDatasets.length > 0) {
+                    console.log('🎯 HAZARD DATASETS FROM OFFICIAL CATALOG:');
+                    hazardDatasets.forEach((dataset, index) => {
+                        console.log(`\n${index + 1}. ${dataset.id || 'Unknown ID'}`);
+                        console.log(`   Title: ${dataset.title || 'No title'}`);
+                        console.log(`   Description: ${(dataset.description || '').substring(0, 100)}${dataset.description && dataset.description.length > 100 ? '...' : ''}`);
+                        if (dataset.formats && dataset.formats.length > 0) {
+                            console.log(`   Formats: ${dataset.formats.join(', ')}`);
+                        }
+                        if (dataset.url) {
+                            console.log(`   URL: ${dataset.url}`);
+                        }
+                    });
+                } else {
+                    console.log('ℹ️  No hazard datasets found or catalog not accessible.');
+                    console.log('🔗 You can manually browse: https://data.geo.admin.ch/');
+                    console.log('🔍 Search terms to try: "naturgefahren", "steinschlag", "rutschung", "hochwasser"');
+                }
+                
+                // Provide manual search guidance
+                console.log(`\n💡 MANUAL SEARCH GUIDANCE:`);
+                console.log('🔗 Visit: https://data.geo.admin.ch/');
+                console.log('🔍 Search for keywords:');
+                console.log('   - "naturgefahren" (natural hazards)');
+                console.log('   - "steinschlag" (rockfall)');
+                console.log('   - "rutschung" (landslides)');
+                console.log('   - "hochwasser" (floods)');
+                console.log('   - "lawinen" (avalanches)');
+                console.log('   - "silvaprotect" (forest protection)');
+                console.log('   - "bafu" (Federal Office for the Environment)');
+                
+                return {
+                    totalSearched: datasets.length,
+                    hazardDatasets: hazardDatasets,
+                    catalogUrl: 'https://data.geo.admin.ch/',
+                    searchKeywords: hazardKeywords
+                };
+                
+            } catch (error) {
+                console.error('❌ Error searching data.geo.admin.ch:', error);
+                console.log('\n🔗 Please visit manually: https://data.geo.admin.ch/');
+                console.log('🔍 Use search terms like "naturgefahren", "steinschlag", "bafu"');
+                return { error: error.message };
+            }
+        }
+        
+        // Add hazard functions to debug console
+        window.mapDebug.hazardLayers = hazardLayers;
+        window.mapDebug.loadHazardLayer = loadHazardLayer;
+        window.mapDebug.removeHazardLayer = removeHazardLayer;
+        window.mapDebug.testLayerExists = testLayerExists;
+        window.mapDebug.searchLayers = searchLayers;
+        window.mapDebug.findHazardLayers = findHazardLayers;
+        window.mapDebug.testWMSLayer = testWMSLayer;
+        window.mapDebug.searchDataGeoadmin = searchDataGeoadmin;
+        
+        console.log('🗺️ Swiss Buildings Map initialized!');
+        console.log('📍 Available debug commands: window.mapDebug');
+        console.log('🏔️ Use hazard controls to overlay hazard maps');
+        console.log('🔍 To find hazard datasets and endpoints:');
+        console.log('   mapDebug.searchDataGeoadmin()     // Search official data.geo.admin.ch catalog');
+        console.log('   mapDebug.findHazardLayers()       // Search layer configuration');
+        console.log('   mapDebug.testWMSLayer("layer-id") // Test specific WMS layer');
+        console.log('   mapDebug.searchLayers("gefahren") // Search by keyword');
+    </script>
+</body>
+</html>

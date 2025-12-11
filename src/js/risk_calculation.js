@@ -107,7 +107,7 @@ function constructionPeriodCodeToYears(periodConstructionCode){
 }
 
 // CAT MODEL - Method 3 Monte Carlo Simulations
-function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, intensity = null) {
+function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, intensity = null, buildingId = null) {
     console.log(`🎲 ==================== CAT MODEL METHOD 3 CALLED ====================`);
     console.log(`🎯 Processing building with GKLAS: ${gklas} (${typeof gklas}) - Intensity: ${intensity}`);
     console.log(`🎯 Hazard type: ${hazType}`);
@@ -229,7 +229,7 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             // if (logDetail) console.log(`Random value: ${randValue}`);
             
             // Random frequency according to power law (method 3)
-            const frq = (randValue * (0.12 - 0.005)) + 0.005;
+            const frq = (randValue * (1 - 0.0033)) + 0.0033;
             // const frq = (randValue * (0.3 - 0.001)) + 0.001;
             // if (logDetail) console.log(`Frequency: ${frq}`);
             
@@ -268,7 +268,9 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
                 frequency: frq,
                 intensity: int_3,
                 vulnerability: vuln_3,
-                damage: dam_3
+                damage: dam_3,
+                buildingId: buildingId || 'unknown',
+                buildingCost: buildCost
             });
             
             // if (logDetail) console.log(`Stored result for simulation ${i + 1}`);
@@ -324,7 +326,7 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
 }
 
 // CAT MODEL - Method 4 Monte Carlo Simulations
-function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, returnPeriod, hazardIntensity) {
+function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, returnPeriod, hazardIntensity, buildingId = null) {
     console.log('🎲 Starting Method 4 - Monte Carlo Simulations ...');
     // console.log('Hazard type:', hazType);
     // console.log('Build cost:', buildCost);
@@ -424,37 +426,49 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             // if (logDetail) console.log(`Random value: ${randValue}`);
             
             // Random frequency according to power law (same as Method 3)
-            const frq = (randValue * (0.12 - 0.005)) + 0.005;
+            const frq = (randValue * (1 - 0.0033)) + 0.0033;
             // if (logDetail) console.log(`Frequency: ${frq}`);
             
             // Method 4: Assign intensity according to hazard level (using correct probability logic)
             let int_4 = 0;
+            let frequenceEconoMe4 = 0;  // Initialize to 0 to prevent undefined multiplication
+            let weightedIntensity = 0;  // Initialize to 0 to prevent undefined multiplication
             
             // Map hazard intensity to Method 4 logic - follows functions_2.js probability rules
             if (hazardIntensity === 'faible' || hazardIntensity === 'low') {
                 // Low danger level: 96.6% probability of getting intensity 30-100, otherwise 0
                 if (randValue < 0.966) {
-                    int_4 = (Math.random() * (30 - 10)) + 10;
+                    int_4 = (Math.random() * (30 - 1)) + 1;
+                    frequenceEconoMe4 = (1/30) - (1/100);
+                    weightedIntensity = (1/967);
                 } else {
                     int_4 = 0;
+                    // frequenceEconoMe4 and weightedIntensity remain 0
                 }
             } else if (hazardIntensity === 'moyenne' || hazardIntensity === 'mean') {
                 // Mean danger level: only 2.4% probability (0.966 to 0.99) of getting intensity 100-300
                 if (randValue < 0.99 && randValue >= 0.966) {
                     int_4 = (Math.random() * (300 - 30)) + 30;
+                    frequenceEconoMe4 = (1/100) - (1/300);
+                    weightedIntensity = (1/23);
                 } else {
                     int_4 = 0;
+                    // frequenceEconoMe4 and weightedIntensity remain 0
                 }
             } else if (hazardIntensity === 'forte' || hazardIntensity === 'high') {
                 // High danger level: only 1% probability (>=0.99) of getting intensity 300-600
                 if (randValue >= 0.99) {
                     int_4 = (Math.random() * (650 - 300)) + 300;
+                    frequenceEconoMe4 = (1/300);
+                    weightedIntensity = (1/10);
                 } else {
                     int_4 = 0;
+                    // frequenceEconoMe4 and weightedIntensity remain 0
                 }
             } else {
                 // Default case - set to 0 for any other hazard intensity values
                 int_4 = 0;
+                // frequenceEconoMe4 and weightedIntensity remain 0
             }
             
             // if (logDetail) console.log(`Method 4 Intensity (hazard level ${hazardIntensity}): ${int_4}`);
@@ -480,6 +494,11 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             // Calculate damage
             // const dam_4 = frq * vuln_4 * buildCost * spatialProb;
             const dam_4 = vuln_4 * buildCost * spatialProb;
+            // const dam_4 = vuln_4 * buildCost * spatialProb * frequenceEconoMe4;
+            // const dam_4 = vuln_4 * buildCost * spatialProb * frequenceEconoMe4 * weightedIntensity;
+            // const dam_4 = vuln_4 * buildCost * spatialProb * weightedIntensity;
+
+
             // if (logDetail) {
             //     console.log(`Damage calculation: ${frq} * ${vuln_4} * ${buildCost} * ${spatialProb} = ${dam_4}`);
             //     console.log(`Is damage valid? ${!isNaN(dam_4)}`);
@@ -505,24 +524,30 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
                 vulnerability: vuln_4,
                 damage: dam_4,
                 hazardIntensity: hazardIntensity,
-                returnPeriod: returnPeriod
+                returnPeriod: returnPeriod,
+                frequenceEconoMe4: frequenceEconoMe4,
+                weightedIntensity: weightedIntensity,
+                buildingId: buildingId || 'unknown',
+                buildingCost: buildCost
             });
             
             // if (logDetail) console.log(`Stored Method 4 result for simulation ${i + 1}`);
         }
         
-        // Sort results by damage (ALL buildings - this is correct!)
-        window.method4Results.sort((a, b) => a.damage - b.damage);
-        
-        // Calculate statistics from ALL accumulated Method 4 results
-        const damages = window.method4Results.map(r => r.damage);
+        // Calculate statistics for THIS BUILDING ONLY BEFORE sorting
+        // Get only the results for this building (last numSimulations results BEFORE sorting)
+        const thisBuildingResults = window.method4Results.slice(-numSimulations);
+        const damages = thisBuildingResults.map(r => r.damage);
         const totalDamage = damages.reduce((sum, d) => sum + d, 0);
-        const meanDamage = damages.length > 0 ? totalDamage / damages.length : 0; // Use actual array length, not just current building simulations
+        const meanDamage = damages.length > 0 ? totalDamage / damages.length : 0;
+        
+        // Sort results by damage (ALL buildings) - AFTER calculating this building's statistics
+        window.method4Results.sort((a, b) => a.damage - b.damage);
         // Use reduce to avoid stack overflow with large arrays
         const minDamage = damages.length > 0 ? damages.reduce((min, val) => Math.min(min, val), Infinity) : 0;
         const maxDamage = damages.length > 0 ? damages.reduce((max, val) => Math.max(max, val), -Infinity) : 0;
         
-        // Calculate standard deviation using actual array length
+        // Calculate standard deviation for this building only
         const variance = damages.length > 0 ? damages.reduce((sum, d) => sum + Math.pow(d - meanDamage, 2), 0) / damages.length : 0;
         const stdDev = Math.sqrt(variance);
         
@@ -555,9 +580,11 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             }
         });
         
-        console.log('✅ Method 4 Results Summary (ALL Buildings Combined):');
+        console.log('✅ Method 4 Results Summary (THIS BUILDING):');
         console.log(`  - Simulations requested for this building: ${numSimulations}`);
-        console.log(`  - Total Method 4 points (all buildings): ${window.method4Results.length}`);
+        console.log(`  - Points generated this building: ${numSimulations}`);
+        console.log(`  - Total accumulated points in global array: ${window.method4Results.length}`);
+        console.log(`  - Statistics calculated from THIS BUILDING: ${damages.length} points`);
         console.log(`  - Current building hazard intensity: ${hazardIntensity}`);
         console.log(`  - Mean damage: ${meanDamage.toFixed(2)} CHF`);
         console.log(`  - Min damage: ${minDamage.toFixed(2)} CHF`);
@@ -613,7 +640,7 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             minDamage: minDamage,
             maxDamage: maxDamage,
             stdDev: stdDev,
-            results: window.method4Results.slice(-numSimulations) // Return just this building's results
+            results: thisBuildingResults // Return only this building's results
         };
     }
     
@@ -623,7 +650,7 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
 
 
 // CAT MODEL - Method 5 & 6 Monte Carlo Simulations
-function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, returnPeriod, hazardLevel = null) {
+function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, returnPeriod, hazardLevel = null, buildingId = null) {
     console.log('🎲 Starting Method 5 & 6 - Monte Carlo Simulations (Return Period Based)...');
     console.log('Return period:', returnPeriod);
     console.log('Hazard level:', hazardLevel);
@@ -727,69 +754,100 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
             let frq = 0;
             let int_5 = 0;
             let int_6 = 0;
+            let frequenceEconoMe5 = 0;  // Initialize to 0 to prevent undefined multiplication
+            let frequenceWeighted = 0;  // Initialize to 0 to prevent undefined multiplication
+            let frequenceEconoMe6 = 0;  // Initialize to 0 to prevent undefined multiplication
+            let weightedIntensity6 = 0;  // Initialize to 0 to prevent undefined multiplication
             
             // Check return period and random value to determine frequency
             if (returnPeriod == 30) {
                 if (randValue < 0.966) {
-                    frq = (Math.random() * (0.12 - 0.033)) + 0.033;
+                    frq = (Math.random() * (1 - 0.033)) + 0.033;
                     // Calculate intensity based on power law distribution (using rockfall formula)
                     int_5 = Math.pow((frq / 0.8304), (-1/0.8));
+                    frequenceEconoMe5 = (1/30) - (1/100);
+                    frequenceWeighted = (1/967);
                     
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                            int_6 = (Math.random() * (30 - 10)) + 10;
+                            int_6 = (Math.random() * (30 - 1)) + 1;
+                            frequenceEconoMe6 = (1/30) - (1/100);
+                            weightedIntensity6 = (1/967);
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
                             int_6 = (Math.random() * (300 - 30)) + 30;
+                            frequenceEconoMe6 = (1/100) - (1/300);
+                            weightedIntensity6 = (1/23);
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
                             int_6 = (Math.random() * (650 - 300)) + 300;
+                            frequenceEconoMe6 = (1/300);
+                            weightedIntensity6 = (1/10);
                         }
                     }
                 } else {
                     frq = 0;
                     int_5 = 0;
                     int_6 = 0;
+                    // weighted variables remain 0
                 }
             } else if (returnPeriod == 100) {
                 if (randValue < 0.99 && randValue >= 0.966) {
-                    frq = (Math.random() * (0.03 - 0.0033)) + 0.0033;
+                    frq = (Math.random() * (0.033 - 0.01)) + 0.01;
                     int_5 = Math.pow((frq / 0.8304), (-1/0.8));
                     // int_5 = Math.pow((frq / 291.03), (-1/1.984));
+                    frequenceEconoMe5 = (1/100) - (1/300);
+                    frequenceWeighted = (1/23);
                     
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                            int_6 = (Math.random() * (30 - 10)) + 10;
+                            int_6 = (Math.random() * (30 - 1)) + 1;
+                            frequenceEconoMe6 = (1/30) - (1/100);
+                            weightedIntensity6 = (1/967);
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
                             int_6 = (Math.random() * (300 - 30)) + 30;
+                            frequenceEconoMe6 = (1/100) - (1/300);
+                            weightedIntensity6 = (1/23);
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
                             int_6 = (Math.random() * (650 - 300)) + 300;
+                            frequenceEconoMe6 = (1/300);
+                            weightedIntensity6 = (1/10);
                         }
                     }
                 } else {
                     frq = 0;
                     int_5 = 0;
                     int_6 = 0;
+                    // weighted variables remain 0
                 }
             } else if (returnPeriod == 300) {
                 if (randValue >= 0.99) {
-                    frq = (Math.random() * (0.0033 - 0.005)) + 0.005;
+                    frq = (Math.random() * (0.01 - 0.0033)) + 0.0033;
                     int_5 = Math.pow((frq / 0.8304), (-1/0.8));
+                    frequenceEconoMe5 = (1/300);
+                    frequenceWeighted = (1/10);
                     
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
                             int_6 = (Math.random() * (30 - 10)) + 10;
+                            frequenceEconoMe6 = (1/30) - (1/100);
+                            weightedIntensity6 = (1/967);
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
                             int_6 = (Math.random() * (300 - 30)) + 30;
+                            frequenceEconoMe6 = (1/100) - (1/300);
+                            weightedIntensity6 = (1/23);
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
                             int_6 = (Math.random() * (650 - 300)) + 300;
+                            frequenceEconoMe6 = (1/300);
+                            weightedIntensity6 = (1/10);
                         }
                     }
                 } else {
                     frq = 0;
                     int_5 = 0;
                     int_6 = 0;
+                    // weighted variables remain 0
                 }
             } 
             // else {
@@ -824,7 +882,12 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
             }
             
             // Calculate damage for Method 5
+            // const dam_5 = frq * vuln_5 * buildCost * spatialProb;
             const dam_5 = vuln_5 * buildCost * spatialProb;
+            // const dam_5 = vuln_5 * buildCost * spatialProb * frequenceEconoMe5;
+
+            // const dam_5 = vuln_5 * buildCost * spatialProb * frequenceEconoMe5 * frequenceWeighted;
+            // const dam_5 = vuln_5 * buildCost * spatialProb * frequenceWeighted;
             
             // Store Method 5 simulation result
             window.method5Results.push({
@@ -833,7 +896,11 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 intensity: int_5,
                 vulnerability: vuln_5,
                 damage: dam_5,
-                returnPeriod: returnPeriod
+                returnPeriod: returnPeriod,
+                frequenceEconoMe5: frequenceEconoMe5,
+                weightedIntensity: frequenceWeighted,
+                buildingId: buildingId || 'unknown',
+                buildingCost: buildCost
             });
             
             // Method 6 calculations (only if hazard level is provided)
@@ -853,7 +920,11 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 }
                 
                 // Calculate damage for Method 6
+                // const dam_6 = frq * vuln_6 * buildCost * spatialProb;
                 const dam_6 = vuln_6 * buildCost * spatialProb;
+                // const dam_6 = vuln_6 * buildCost * spatialProb * frequenceEconoMe6;
+                // const dam_6 = vuln_6 * buildCost * spatialProb * frequenceEconoMe6 * weightedIntensity6;
+                // const dam_6 = vuln_6 * buildCost * spatialProb * weightedIntensity6;
                 
                 // Store Method 6 simulation result
                 window.method6Results.push({
@@ -863,19 +934,19 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                     vulnerability: vuln_6,
                     damage: dam_6,
                     returnPeriod: returnPeriod,
-                    hazardLevel: hazardLevel
+                    hazardLevel: hazardLevel,
+                    frequenceEconoMe6: frequenceEconoMe6,
+                    weightedIntensity: weightedIntensity6,
+                    buildingId: buildingId || 'unknown',
+                    buildingCost: buildCost
                 });
             }
         }
         
-        // Sort results by damage for both methods
-        window.method5Results.sort((a, b) => a.damage - b.damage);
-        if (window.method6Results.length > 0) {
-            window.method6Results.sort((a, b) => a.damage - b.damage);
-        }
-        
-        // Calculate Method 5 statistics
-        const damages5 = window.method5Results.map(r => r.damage);
+        // Calculate Method 5 statistics for THIS BUILDING ONLY BEFORE sorting
+        // Get only the results for this building (last numSimulations results BEFORE sorting)
+        const thisBuildingResults5 = window.method5Results.slice(-numSimulations);
+        const damages5 = thisBuildingResults5.map(r => r.damage);
         const totalDamage5 = damages5.reduce((sum, d) => sum + d, 0);
         const meanDamage5 = damages5.length > 0 ? totalDamage5 / damages5.length : 0;
         const minDamage5 = damages5.length > 0 ? damages5.reduce((min, val) => Math.min(min, val), Infinity) : 0;
@@ -883,9 +954,11 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
         const variance5 = damages5.length > 0 ? damages5.reduce((sum, d) => sum + Math.pow(d - meanDamage5, 2), 0) / damages5.length : 0;
         const stdDev5 = Math.sqrt(variance5);
         
-        console.log('✅ Method 5 Results Summary (ALL Buildings Combined):');
+        console.log('✅ Method 5 Results Summary (THIS BUILDING):');
         console.log(`  - Simulations requested for this building: ${numSimulations}`);
-        console.log(`  - Total Method 5 points (all buildings): ${window.method5Results.length}`);
+        console.log(`  - Points generated this building: ${numSimulations}`);
+        console.log(`  - Total accumulated points in global array: ${window.method5Results.length}`);
+        console.log(`  - Statistics calculated from THIS BUILDING: ${damages5.length} points`);
         console.log(`  - Current building return period: ${returnPeriod}`);
         console.log(`  - Mean damage: ${meanDamage5.toFixed(2)} CHF`);
         console.log(`  - Min damage: ${minDamage5.toFixed(2)} CHF`);
@@ -895,7 +968,10 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
         // Calculate Method 6 statistics if applicable
         let method6Stats = null;
         if (hazardLevel && window.method6Results.length > 0) {
-            const damages6 = window.method6Results.map(r => r.damage);
+            // Calculate Method 6 statistics for THIS BUILDING ONLY
+            // Get only the results for this building (last numSimulations results)
+            const thisBuildingResults6 = window.method6Results.slice(-numSimulations);
+            const damages6 = thisBuildingResults6.map(r => r.damage);
             const totalDamage6 = damages6.reduce((sum, d) => sum + d, 0);
             const meanDamage6 = damages6.length > 0 ? totalDamage6 / damages6.length : 0;
             const minDamage6 = damages6.length > 0 ? damages6.reduce((min, val) => Math.min(min, val), Infinity) : 0;
@@ -909,18 +985,26 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 minDamage: minDamage6,
                 maxDamage: maxDamage6,
                 stdDev: stdDev6,
-                results: window.method6Results.slice(-numSimulations)
+                results: thisBuildingResults6
             };
             
-            console.log('✅ Method 6 Results Summary (ALL Buildings Combined):');
+            console.log('✅ Method 6 Results Summary (THIS BUILDING):');
             console.log(`  - Simulations requested for this building: ${numSimulations}`);
-            console.log(`  - Total Method 6 points (all buildings): ${window.method6Results.length}`);
+            console.log(`  - Points generated this building: ${numSimulations}`);
+            console.log(`  - Total accumulated points in global array: ${window.method6Results.length}`);
+            console.log(`  - Statistics calculated from THIS BUILDING: ${damages6.length} points`);
             console.log(`  - Current building return period: ${returnPeriod}`);
             console.log(`  - Current building hazard level: ${hazardLevel}`);
             console.log(`  - Mean damage: ${meanDamage6.toFixed(2)} CHF`);
             console.log(`  - Min damage: ${minDamage6.toFixed(2)} CHF`);
             console.log(`  - Max damage: ${maxDamage6.toFixed(2)} CHF`);
             console.log(`  - Std deviation: ${stdDev6.toFixed(2)} CHF`);
+        }
+        
+        // Sort results by damage for both methods - AFTER calculating building statistics
+        window.method5Results.sort((a, b) => a.damage - b.damage);
+        if (window.method6Results.length > 0) {
+            window.method6Results.sort((a, b) => a.damage - b.damage);
         }
         
         return {
@@ -930,7 +1014,7 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 minDamage: minDamage5,
                 maxDamage: maxDamage5,
                 stdDev: stdDev5,
-                results: window.method5Results.slice(-numSimulations)
+                results: thisBuildingResults5 // Return only this building's results
             },
             method6: method6Stats
         };
@@ -940,6 +1024,98 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
     return null;
 }
 
+// ========================================================================
+// ==================== POISSON DISTRIBUTION FUNCTIONS ====================
+// ========================================================================
+
+/**
+ * Log factorial function for numerical stability
+ * @param {number} n - Input number
+ * @returns {number} - Log of factorial
+ */
+function logFactorial(n) {
+    if (n === 0 || n === 1) return 0;
+    let result = 0;
+    for (let i = 2; i <= n; i++) {
+        result += Math.log(i);
+    }
+    return result;
+}
+
+/**
+ * Poisson probability mass function (numerically stable)
+ * @param {number} k - Event count
+ * @param {number} lambda - Expected value/mean
+ * @returns {number} - Probability
+ */
+function poissonPMF(k, lambda) {
+    if (lambda <= 0) return 0;
+    if (k < 0) return 0;
+    
+    // Use log-space calculations to avoid overflow
+    // log(P(X=k)) = k*log(λ) - λ - log(k!)
+    const logProb = k * Math.log(lambda) - lambda - logFactorial(k);
+    return Math.exp(logProb);
+}
+
+/**
+ * Find the value closest to the random quantile using Poisson distribution
+ * @param {number} lambda - Expected value/mean
+ * @param {number} randomValue - Random value between 0 and 1
+ * @returns {number} - Poisson-distributed random value
+ */
+function inversePoissonApprox(lambda, randomValue) {
+    if (lambda <= 0 || randomValue <= 0 || randomValue >= 1) {
+        return Math.max(1, Math.round(lambda)); // Return at least 1 simulation
+    }
+    
+    // For large lambda, start near the mean for efficiency
+    let k = lambda > 50 ? Math.max(0, Math.round(lambda - 3 * Math.sqrt(lambda))) : 0;
+    let cumulativeProb = 0;
+    
+    // Calculate cumulative probability up to starting point if we started above 0
+    if (k > 0) {
+        for (let i = 0; i < k; i++) {
+            cumulativeProb += poissonPMF(i, lambda);
+        }
+    }
+    
+    // Continue from starting point
+    let maxK = lambda + 6 * Math.sqrt(lambda); // Reasonable upper bound
+    while (cumulativeProb < randomValue && k < maxK) {
+        cumulativeProb += poissonPMF(k, lambda);
+        if (cumulativeProb >= randomValue) {
+            return Math.max(1, k); // Return at least 1 simulation
+        }
+        k++;
+    }
+    
+    return Math.max(1, k); // Return at least 1 simulation
+}
+
+/**
+ * Generate Poisson-distributed number of simulations
+ * @param {number} expectedSimulations - Expected number of simulations (mean)
+ * @returns {number} - Actual number of simulations to perform
+ */
+function generatePoissonSimulations(expectedSimulations) {
+    console.log(`🎲 Generating Poisson-distributed simulations with mean: ${expectedSimulations}`);
+    
+    if (!expectedSimulations || expectedSimulations <= 0) {
+        console.warn('⚠️ Invalid expected simulations, using default 1000');
+        expectedSimulations = 1000;
+    }
+    
+    // Generate random value between 0 and 1
+    const randomValue = Math.random();
+    
+    // Use inverse Poisson to get the actual number of simulations
+    const actualSimulations = inversePoissonApprox(expectedSimulations, randomValue);
+    
+    console.log(`🎲 Poisson result: Expected=${expectedSimulations}, Random=${randomValue.toFixed(6)}, Actual=${actualSimulations}`);
+    
+    return actualSimulations;
+}
 
 // Make functions available globally
 window.volumeBuilding = volumeBuilding;
@@ -948,3 +1124,7 @@ window.constructionPeriodCodeToYears = constructionPeriodCodeToYears;
 window.method3CatModel = method3CatModel;
 window.method4CatModel = method4CatModel;
 window.method5And6CatModel = method5And6CatModel;
+window.logFactorial = logFactorial;
+window.poissonPMF = poissonPMF;
+window.inversePoissonApprox = inversePoissonApprox;
+window.generatePoissonSimulations = generatePoissonSimulations;

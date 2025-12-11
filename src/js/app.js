@@ -222,6 +222,31 @@ function initializeWorkflow() {
     initializeBuildingButton();      // → building-management.js
     initializeVulnerabilityControls(); // → vulnerability.js 
     initializeAnalysisControls();    // → analysis-visualization.js
+    initializeCATExportButton();     // → CAT Model CSV export functionality
+    
+    // CAT Model Export functionality (CSV & Excel)
+    function initializeCATExportButton() {
+        const csvExportBtn = document.getElementById('export-cat-csv');
+        const excelExportBtn = document.getElementById('export-cat-excel');
+        
+        if (csvExportBtn) {
+            csvExportBtn.addEventListener('click', function() {
+                exportCATResultsToCSV();
+            });
+            console.log('✅ CAT Model CSV export button initialized');
+        } else {
+            console.warn('⚠️ Export CAT CSV button not found');
+        }
+        
+        if (excelExportBtn) {
+            excelExportBtn.addEventListener('click', function() {
+                exportCATResultsToExcel();
+            });
+            console.log('✅ CAT Model Excel export button initialized');
+        } else {
+            console.warn('⚠️ Export CAT Excel button not found');
+        }
+    }
     
     // Location controls functionality
     function initializeLocationControls() {
@@ -591,7 +616,16 @@ function initializeWorkflow() {
 
                 // Log buildings analysed data and use it perform the risk assessment.
                 console.table('Table data for risk assessment');
-                console.table(window.latestExtractionResults.buildingsAnalyzed || {}); 
+                console.table(window.latestExtractionResults.buildingsAnalyzed || {});
+                
+                // ===============================================================================
+                // =================== POISSON-DISTRIBUTED SIMULATIONS =========================
+                // ===============================================================================
+                // The number of simulations is now determined using Poisson distribution:
+                // - Input value becomes the expected/mean number of simulations (λ)
+                // - Random variability is added through inverse Poisson sampling
+                // - This provides realistic simulation count variations around the expected value
+                // =============================================================================== 
                 
                 // Convert numeric fields to proper types for calculations
                 if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
@@ -602,19 +636,42 @@ function initializeWorkflow() {
                         const props = building.buildingProperties || {};
                         const hazardProps = building.hazardProperties || {};
                         
+                        // Debug: Log building properties for first few buildings
+                        if (index < 3) {
+                            console.log(`🔍 Building ${index + 1} properties:`, props);
+                            console.log(`🔍 Building ${index + 1} keys:`, Object.keys(props));
+                            console.log(`🔍 Building ${index + 1} EGID:`, building.EGID || props.EGID || 'missing');
+                            console.log(`🔍 Building ${index + 1} GKLAS:`, building.GKLAS || props.GKLAS || 'missing');
+                        }
+                        
                         // Create comprehensive variables for building properties
-                        let constructionYear = props.GBAUJ;
-                        let buildingArea = props.GAREA;
-                        let buildingVolume = props.GVOL;
-                        let numberOfFloors = props.GASTW !== "N/A" ? props.GASTW : 3;
-                        let numberOfApartments = props.GANZWHG !== "N/A" ? props.GANZWHG : 2;
-                        let buildingClass = props.GKLAS;
-                        let constructionPeriod = props.GBAUP;
-                        let coordinateE = props.GKODE;
-                        let coordinateN = props.GKODN;
+                        // Use fallbacks for GeoAdmin data structure
+                        let constructionYear = props.GBAUJ || props.baujahr;
+                        let buildingArea = props.GAREA || props.gebaeudeflaeche || props.area;
+                        let buildingVolume = props.GVOL || props.volumen || props.volume;
+                        let numberOfFloors = (props.GASTW !== "N/A" && props.GASTW !== null) ? props.GASTW : 
+                                           (props.stockwerke !== "N/A" && props.stockwerke !== null) ? props.stockwerke : 2;
+                        let numberOfApartments = (props.GANZWHG !== "N/A" && props.GANZWHG !== null) ? props.GANZWHG : 
+                                               (props.wohnungen !== "N/A" && props.wohnungen !== null) ? props.wohnungen : 1;
+                        let buildingClass = props.GKLAS || props.klasse || building.GKLAS;
+                        let constructionPeriod = props.GBAUP || props.bauperiode;
+                        let coordinateE = props.GKODE || building.geometry?.coordinates?.[0];
+                        let coordinateN = props.GKODN || building.geometry?.coordinates?.[1];
                         let communeNumber = props.GGDENR;
                         let buildingNumber = props.GEBNR;
                         let constructionMonth = props.GBAUM;
+
+                        // Debug: Show extracted values for first few buildings
+                        if (index < 3) {
+                            console.log(`🔍 Building ${index + 1} extracted values:`);
+                            console.log(`  - Construction Year: ${constructionYear}`);
+                            console.log(`  - Building Area: ${buildingArea}`);
+                            console.log(`  - Building Volume: ${buildingVolume}`);
+                            console.log(`  - Number of Floors: ${numberOfFloors}`);
+                            console.log(`  - Number of Apartments: ${numberOfApartments}`);
+                            console.log(`  - Building Class (GKLAS): ${buildingClass}`);
+                            console.log(`  - Construction Period: ${constructionPeriod}`);
+                        }
 
                         // Convert string numbers to integers/floats for calculations
                         if (constructionYear) props.GBAUJ = parseInt(constructionYear) || constructionYear;
@@ -634,14 +691,39 @@ function initializeWorkflow() {
                         // ================================================================================================                       
                        
 
+                        // Ensure we have valid numeric values with defaults for missing GeoAdmin data
+                        if (!constructionYear || constructionYear === 0 || constructionYear === 'N/A') {
+                            constructionYear = 1970; // Default construction year
+                        }
+                        if (!buildingArea || buildingArea === 0 || buildingArea === 'N/A') {
+                            buildingArea = 120; // Default building area in m²
+                        }
+                        if (!numberOfFloors || numberOfFloors === 0 || numberOfFloors === 'N/A') {
+                            numberOfFloors = 2; // Default number of floors
+                        }
+                        if (!numberOfApartments || numberOfApartments === 0 || numberOfApartments === 'N/A') {
+                            numberOfApartments = 1; // Default number of apartments
+                        }
+                        if (!buildingClass || buildingClass === 'N/A') {
+                            buildingClass = 1110; // Default to residential
+                        }
+                        
                         // Handle building volume - convert if available, calculate if missing
                         if (buildingVolume && buildingVolume !== "N/A" && !isNaN(parseFloat(buildingVolume))) {
                             buildingVolume = parseFloat(buildingVolume);
                         } else if (buildingArea && numberOfFloors && buildingArea > 0 && numberOfFloors > 0) {
-                            buildingVolume = volumeBuilding(buildingArea, numberOfFloors);
+                            buildingVolume = window.volumeBuilding ? window.volumeBuilding(buildingArea, numberOfFloors) : buildingArea * numberOfFloors * 2.7;
                         } else {
-                            buildingVolume = 'N/A';
+                            buildingVolume = 120 * 2 * 2.7; // Default volume calculation
                         }
+                        
+                        // Update props with calculated/default values
+                        props.GBAUJ = constructionYear;
+                        props.GAREA = buildingArea;
+                        props.GVOL = buildingVolume;
+                        props.GASTW = numberOfFloors;
+                        props.GANZWHG = numberOfApartments;
+                        props.GKLAS = buildingClass;
                         
                         // Keep original construction period code and create new converted year field
                         let convertedYearFromPeriod = null;
@@ -1001,6 +1083,18 @@ function initializeWorkflow() {
                         
                         // End of new fields section
                         // ===============================
+                        
+                        // Debug: Log calculated fields for first few buildings
+                        if (index < 3) {
+                            console.log(`✅ Building ${index + 1} final calculated values:`);
+                            console.log(`  - TOTAL_COST: ${building.buildingProperties?.TOTAL_COST}`);
+                            console.log(`  - TEMPORAL_HAZARD_PROB: ${building.TEMPORAL_HAZARD_PROB}`);
+                            console.log(`  - SPATIAL_HAZARD_PROB: ${building.SPATIAL_HAZARD_PROB}`);
+                            console.log(`  - VULNERABILITY: ${building.VULNERABILITY}`);
+                            console.log(`  - DAMAGE: ${building.DAMAGE}`);
+                            console.log(`  - VULNERABILITY_LITERATURE: ${building.VULNERABILITY_LITERATURE}`);
+                            console.log(`  - DAMAGE_LITERATURE: ${building.DAMAGE_LITERATURE}`);
+                        }
                     });                    
                     console.log('✅ Numeric fields converted and calculations completed for', window.latestExtractionResults.buildingsAnalyzed.length, 'buildings');
                 }
@@ -1015,10 +1109,20 @@ function initializeWorkflow() {
                 window.method3Results = [];
                 console.log('🔄 Method 3 results array initialized for multi-building analysis');
                 
-                // Get simulation count from input
+                // Get expected simulation count from input and apply Poisson distribution
                 const simulationCountElement = document.getElementById('simulation-count');
-                const numSimulations = simulationCountElement ? parseInt(simulationCountElement.value) : 100; // Changed default to 100 for debugging
-                console.log('Number of simulations:', numSimulations);
+                const expectedSimulations = simulationCountElement ? parseInt(simulationCountElement.value) : 1000; // Default expected value
+                
+                // Generate actual number of simulations using Poisson distribution
+                let numSimulations = expectedSimulations;
+                if (typeof window.generatePoissonSimulations === 'function') {
+                    numSimulations = window.generatePoissonSimulations(expectedSimulations);
+                } else {
+                    console.warn('⚠️ Poisson simulation function not available, using expected value directly');
+                    numSimulations = expectedSimulations;
+                }
+                
+                console.log(`🎲 Simulations: Expected=${expectedSimulations}, Actual=${numSimulations} (Poisson-distributed)`);
                 
                 // Spatial probability will be calculated per building based on return period and hazard type
                 const hazardType = window.selectedHazard || 'rockfall';
@@ -1144,7 +1248,7 @@ function initializeWorkflow() {
                         if (typeof window.method3CatModel === 'function') {
                             console.log(`📞 Calling method3CatModel for EGID ${egid}: GKLAS=${bestRow.gklas}, intensity=${bestRow.intensity}, spatialProb=${spatialProb}`);
                             
-                            const method3Result = window.method3CatModel(hazardType, buildCost, spatialProb, numSimulations, bestRow.gklas, bestRow.intensity);
+                            const method3Result = window.method3CatModel(hazardType, buildCost, spatialProb, numSimulations, bestRow.gklas, bestRow.intensity, egid);
                             
                             if (method3Result) {
                                 // Store Method 3 results on building object
@@ -1193,6 +1297,7 @@ function initializeWorkflow() {
                 // ===============================================================================
 
                 console.log('🎲 Starting CAT Model Method 4, 5 and 6 Monte Carlo Analysis...');
+                console.log(`🎲 Using same Poisson-distributed simulation count: ${numSimulations}`);
 
                 // CAT Model - Method 4 Monte Carlo Simulations (Return Period & Hazard Intensity)
                 console.log('\n🎯 === CAT Model Method 4 Analysis ===');
@@ -1213,6 +1318,9 @@ function initializeWorkflow() {
                     allBuildings.forEach((building, index) => {
                         const props = building.buildingProperties || {};
                         const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
+                        
+                        // Extract EGID for building identification
+                        const egid = building.EGID || props.EGID || `building_${index + 1}`;
                         
                         // Try both locations for GKLAS (direct on building or in buildingProperties)
                         const gklas = building.GKLAS || props.GKLAS;
@@ -1253,7 +1361,8 @@ function initializeWorkflow() {
                                 numSimulations,
                                 gklas,
                                 returnPeriod,
-                                hazardIntensity  // Pass intensity instead of danger level
+                                hazardIntensity,  // Pass intensity instead of danger level
+                                egid  // Pass building EGID for tracking
                             );
                             
                             if (method4Result) {
@@ -1322,7 +1431,7 @@ function initializeWorkflow() {
                     // Update existing Method 3 graphs to include Method 4 data
                     if (window.method3Results && window.method3Results.length > 0) {
                         createCATModelVulnerabilityGraph(); // This will now include Method 4 points
-                        createMethod3ExceedanceGraph(); // This will now include Method 4 curves
+                        // createMethod3ExceedanceGraph(); // Removed - will be called once at end
                     }
                     
                     // Create the new comparison graph
@@ -1357,6 +1466,9 @@ function initializeWorkflow() {
                     allBuildings.forEach((building, index) => {
                         const props = building.buildingProperties || {};
                         const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
+                        
+                        // Extract EGID for building identification
+                        const egid = building.EGID || props.EGID || `building_${index + 1}`;
                         
                         // Try both locations for GKLAS (direct on building or in buildingProperties)
                         const gklas = building.GKLAS || props.GKLAS;
@@ -1398,7 +1510,8 @@ function initializeWorkflow() {
                                 numSimulations,
                                 gklas,
                                 returnPeriod,
-                                hazardLevel  // Pass hazard level to enable Method 6
+                                hazardLevel,  // Pass hazard level to enable Method 6
+                                egid  // Pass building EGID for tracking
                             );
                             
                             if (method5And6Result && method5And6Result.method5) {
@@ -1497,7 +1610,7 @@ function initializeWorkflow() {
                     if (window.method5ResultsByPeriod) {
                         console.log('🎯 Creating graphs with Method 5 data...');
                         // Update exceedance graph to include Method 5 curves
-                        createMethod3ExceedanceGraph();
+                        // createMethod3ExceedanceGraph(); // Removed - will be called once at end
                         // Update vulnerability graph
                         createCATModelVulnerabilityGraph();
                         // Update comparison graph
@@ -1514,7 +1627,7 @@ function initializeWorkflow() {
                     if (window.method6ResultsByPeriod && Object.keys(window.method6ResultsByPeriod).length > 0) {
                         console.log('🎯 Creating graphs with Method 6 data...');
                         // Method 6 graphs will be integrated into the same visualization functions
-                        createMethod3ExceedanceGraph();
+                        // createMethod3ExceedanceGraph(); // Removed - will be called once at end
                         createCATModelVulnerabilityGraph();
                         createMethodsComparisonGraph();
                         
@@ -1873,7 +1986,6 @@ function initializeWorkflow() {
                     <p><strong>Total Buildings in Polygon:</strong> ${totalBuildings}</p>
                     <p><strong>Unique Buildings with Hazard Exposure:</strong> ${uniqueBuildingsWithHazard}</p>
                     <p><strong>Buildings with No Hazard:</strong> ${buildingsNoHazard}</p>
-                    <p><strong>Hazard Coverage:</strong> ${hazardCoverage}%</p>
                     <p><strong>Total Hazard Features:</strong> ${hazardsInside.length}</p>
                     <hr>
                     <p><small><strong>Building-Hazard Combinations:</strong> ${buildingHazardCombinations} entries</small></p>
@@ -1923,10 +2035,13 @@ function initializeWorkflow() {
             return;
         }
         
-        // Show ALL buildings analyzed (including "aucune_atteinte" for investigation)
-        const buildingsToShow = buildingsAnalyzed;
+        // Filter out buildings with "aucune_atteinte" intensity for cleaner analysis
+        const buildingsToShow = buildingsAnalyzed.filter(building => {
+            const intensity = building.intensity || building.hazardIntensity || 'Unknown';
+            return intensity !== 'aucune_atteinte';
+        });
         
-        console.log(`📊 Showing all ${buildingsToShow.length} buildings analyzed (including "aucune_atteinte" for investigation)`);
+        console.log(`📊 Showing ${buildingsToShow.length} buildings analyzed (filtered out "aucune_atteinte")`);
         
         // Count different intensity types for logging
         const intensityCounts = {};
@@ -2369,9 +2484,9 @@ function initializeWorkflow() {
                     if (intensity?.includes('forte') || intensity?.includes('high')) {
                         return { backgroundColor: '#f8d7da', fontWeight: 'bold', color: '#721c24' };
                     } else if (intensity?.includes('moyenne') || intensity?.includes('medium')) {
-                        return { backgroundColor: '#fff3cd', fontWeight: 'bold', color: '#856404' };
+                        return { backgroundColor: '#cfe2ff', fontWeight: 'bold', color: '#084298' };
                     } else if (intensity?.includes('faible') || intensity?.includes('low')) {
-                        return { backgroundColor: '#d1edff', fontWeight: 'bold', color: '#004085' };
+                        return { backgroundColor: '#fff3cd', fontWeight: 'bold', color: '#856404' };
                     }
                     return { backgroundColor: '#f8f9fa' };
                 }
@@ -2549,7 +2664,6 @@ function initializeWorkflow() {
         resultsMessage += `• Total buildings analyzed: ${summary.totalBuildings}\n`;
         resultsMessage += `• Buildings with hazard exposure: ${summary.buildingsWithHazard}\n`;
         resultsMessage += `• Buildings with no hazard exposure: ${summary.buildingsNoHazard}\n`;
-        resultsMessage += `• Hazard coverage: ${summary.hazardCoverage}%\n`;
         resultsMessage += `• Hazard type: ${hazardType}\n\n`;
         
         resultsMessage += `🚨 RISK DISTRIBUTION:\n`;
@@ -3193,6 +3307,10 @@ function initializeWorkflow() {
                 return;
             }
             
+            // Clear any existing plot to prevent trace accumulation
+            container.innerHTML = '';
+            console.log('🧹 Cleared existing exceedance plot traces');
+            
             console.log('📊 Creating Method 3 exceedance curve...');
             console.log(`📊 Method 3 results array size: ${window.method3Results?.length || 0} points`);
             
@@ -3251,6 +3369,7 @@ function initializeWorkflow() {
                 
                 sortedResults.forEach((result, index) => {
                     damages.push(result.damage);
+                    // Standard cumulative exceedance probability: 1 - (rank / total)
                     const exceedanceProb = 1 - (index / sortedResults.length);
                     exceedanceProbs.push(exceedanceProb);
                     const returnPeriod = exceedanceProb > 0 ? 1 / exceedanceProb : 1000000;
@@ -3261,7 +3380,10 @@ function initializeWorkflow() {
                 
                 const traces = [];
                 
+                console.log('🎯 EXCEEDANCE CURVES: Creating traces...');
+                
                 // Method 3 trace
+                console.log('🎯 Method 3: Single trace with', damages.length, 'points');
                 traces.push({
                     x: damages,
                     y: exceedanceProbs,
@@ -3274,129 +3396,236 @@ function initializeWorkflow() {
                     }
                 });
                 
-                // Method 4 trace (all danger levels combined)
+                // Method 4 trace - COMPLETELY FLATTEN ALL RESULTS INTO ONE ARRAY
                 let allDamages = [...damages]; // Start with Method 3 damages for range calculation
                 
                 if (window.method4ResultsByLevel) {
-                    // Combine all Method 4 results from all danger levels
-                    const allMethod4Results = [];
+                    console.log('🔍 METHOD 4 CONSOLIDATION:');
+                    console.log('  - Input structure keys:', Object.keys(window.method4ResultsByLevel));
                     
-                    Object.keys(window.method4ResultsByLevel).forEach(intensityLevel => {
-                        if (window.method4ResultsByLevel[intensityLevel] && window.method4ResultsByLevel[intensityLevel].length > 0) {
-                            const levelResults = window.method4ResultsByLevel[intensityLevel].flatMap(building => building.results);
-                            allMethod4Results.push(...levelResults);
-                        }
+                    // STEP 1: Create ONE consolidated array by completely flattening everything
+                    const consolidatedMethod4Results = [];
+                    
+                    // STEP 2: Extract ALL individual simulation results from ALL levels and ALL buildings
+                    Object.keys(window.method4ResultsByLevel).forEach(level => {
+                        const buildingsAtLevel = window.method4ResultsByLevel[level] || [];
+                        console.log(`  - Level "${level}": ${buildingsAtLevel.length} buildings`);
+                        
+                        buildingsAtLevel.forEach((building, buildingIndex) => {
+                            const buildingResults = building.results || [];
+                            console.log(`    Building ${buildingIndex + 1}: ${buildingResults.length} results`);
+                            
+                            // Add each individual result to consolidated array
+                            buildingResults.forEach(result => {
+                                consolidatedMethod4Results.push({
+                                    damage: result.damage,
+                                    frequency: result.frequency,
+                                    intensity: result.intensity,
+                                    vulnerability: result.vulnerability,
+                                    sourceLevel: level,
+                                    sourceBuildingId: building.buildingId || result.buildingId
+                                });
+                            });
+                        });
                     });
                     
-                    if (allMethod4Results.length > 0) {
-                        // Sort all Method 4 damages in ascending order
-                        const sortedMethod4Results = [...allMethod4Results].sort((a, b) => a.damage - b.damage);
-                        const method4Damages = sortedMethod4Results.map(r => r.damage);
-                        const method4ExceedanceProbs = sortedMethod4Results.map((_, index) => 1 - (index / sortedMethod4Results.length));
+                    console.log(`  - CONSOLIDATED TOTAL: ${consolidatedMethod4Results.length} individual results`);
+                    
+                    if (consolidatedMethod4Results.length > 0) {
+                        // STEP 3: Sort all damages in ascending order
+                        consolidatedMethod4Results.sort((a, b) => a.damage - b.damage);
                         
-                        // Add to all damages for range calculation
-                        allDamages = allDamages.concat(method4Damages);
+                        // STEP 4: Create single damage array and single exceedance probability array
+                        const singleDamageArray = consolidatedMethod4Results.map(r => r.damage);
+                        const singleExceedanceArray = consolidatedMethod4Results.map((_, index) => {
+                            return 1 - (index / consolidatedMethod4Results.length);
+                        });
+
+                        // Debug consolidated results
+                        const uniqueDamages = [...new Set(singleDamageArray)];
+                        const minDamage = Math.min(...singleDamageArray);
+                        const maxDamage = Math.max(...singleDamageArray);
+                        const zeroDamages = singleDamageArray.filter(d => d === 0).length;
+                        console.log('🔍 Method 4 FINAL CONSOLIDATED ANALYSIS:');
+                        console.log(`  - Total consolidated points: ${singleDamageArray.length}`);
+                        console.log(`  - Unique damage values: ${uniqueDamages.length}`);
+                        console.log(`  - Damage range: ${minDamage.toFixed(2)} to ${maxDamage.toFixed(2)}`);
+                        console.log(`  - Zero damages: ${zeroDamages} (${((zeroDamages/singleDamageArray.length)*100).toFixed(1)}%)`);
+
+                        allDamages = allDamages.concat(singleDamageArray);
                         
-                            traces.push({
-                                x: method4Damages,
-                                y: method4ExceedanceProbs,
-                                name: `Method 4`,
-                                type: 'scatter',
-                                mode: 'lines',
-                                line: {
-                                    color: '#d62728', // Red
-                                    width: 2
-                                }
-                            });                        // Store Method 4 data globally for update function
+                        // STEP 5: Create SINGLE trace for Method 4
+                        console.log('🎯 Method 4: SINGLE CONSOLIDATED trace with', singleDamageArray.length, 'points');
+                        traces.push({
+                            x: singleDamageArray,
+                            y: singleExceedanceArray,
+                            name: 'Method 4',
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: { color: '#d62728', width: 2 }
+                        });
+                        
                         window.method4ExceedanceData = { 
-                            damages: method4Damages, 
-                            exceedanceProbs: method4ExceedanceProbs, 
-                            sortedResults: sortedMethod4Results 
+                            damages: singleDamageArray, 
+                            exceedanceProbs: singleExceedanceArray, 
+                            sortedResults: consolidatedMethod4Results 
                         };
+                    } else {
+                        console.warn('⚠️ Method 4: No results to consolidate');
                     }
                 }
                 
-                // Method 5 trace (all return periods combined)
+                // Method 5 trace - COMPLETELY FLATTEN ALL RESULTS INTO ONE ARRAY
                 if (window.method5ResultsByPeriod) {
-                    // Combine all Method 5 results from all return periods
-                    const allMethod5Results = [];
+                    console.log('🔍 METHOD 5 CONSOLIDATION:');
+                    console.log('  - Input structure keys:', Object.keys(window.method5ResultsByPeriod));
                     
-                    Object.keys(window.method5ResultsByPeriod).forEach(returnPeriod => {
-                        if (window.method5ResultsByPeriod[returnPeriod] && window.method5ResultsByPeriod[returnPeriod].length > 0) {
-                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => building.results);
-                            allMethod5Results.push(...periodResults);
-                        }
+                    // STEP 1: Create ONE consolidated array by completely flattening everything
+                    const consolidatedMethod5Results = [];
+                    
+                    // STEP 2: Extract ALL individual simulation results from ALL periods and ALL buildings
+                    Object.keys(window.method5ResultsByPeriod).forEach(period => {
+                        const buildingsAtPeriod = window.method5ResultsByPeriod[period] || [];
+                        console.log(`  - Period "${period}": ${buildingsAtPeriod.length} buildings`);
+                        
+                        buildingsAtPeriod.forEach((building, buildingIndex) => {
+                            const buildingResults = building.results || [];
+                            console.log(`    Building ${buildingIndex + 1}: ${buildingResults.length} results`);
+                            
+                            // Add each individual result to consolidated array
+                            buildingResults.forEach(result => {
+                                consolidatedMethod5Results.push({
+                                    damage: result.damage,
+                                    frequency: result.frequency,
+                                    intensity: result.intensity,
+                                    vulnerability: result.vulnerability,
+                                    sourcePeriod: period,
+                                    sourceBuildingId: building.buildingId || result.buildingId
+                                });
+                            });
+                        });
                     });
                     
-                    if (allMethod5Results.length > 0) {
-                        // Sort all Method 5 damages in ascending order
-                        const sortedMethod5Results = [...allMethod5Results].sort((a, b) => a.damage - b.damage);
-                        const method5Damages = sortedMethod5Results.map(r => r.damage);
-                        const method5ExceedanceProbs = sortedMethod5Results.map((_, index) => 1 - (index / sortedMethod5Results.length));
+                    console.log(`  - CONSOLIDATED TOTAL: ${consolidatedMethod5Results.length} individual results`);
+                    
+                    if (consolidatedMethod5Results.length > 0) {
+                        // STEP 3: Sort all damages in ascending order
+                        consolidatedMethod5Results.sort((a, b) => a.damage - b.damage);
                         
-                        // Add to all damages for range calculation
-                        allDamages = allDamages.concat(method5Damages);
+                        // STEP 4: Create single damage array and single exceedance probability array
+                        const singleDamageArray = consolidatedMethod5Results.map(r => r.damage);
+                        const singleExceedanceArray = consolidatedMethod5Results.map((_, index) => {
+                            return 1 - (index / consolidatedMethod5Results.length);
+                        });
+
+                        // Debug consolidated results
+                        const uniqueDamages = [...new Set(singleDamageArray)];
+                        const minDamage = Math.min(...singleDamageArray);
+                        const maxDamage = Math.max(...singleDamageArray);
+                        const zeroDamages = singleDamageArray.filter(d => d === 0).length;
+                        console.log('🔍 Method 5 FINAL CONSOLIDATED ANALYSIS:');
+                        console.log(`  - Total consolidated points: ${singleDamageArray.length}`);
+                        console.log(`  - Unique damage values: ${uniqueDamages.length}`);
+                        console.log(`  - Damage range: ${minDamage.toFixed(2)} to ${maxDamage.toFixed(2)}`);
+                        console.log(`  - Zero damages: ${zeroDamages} (${((zeroDamages/singleDamageArray.length)*100).toFixed(1)}%)`);
+
+                        allDamages = allDamages.concat(singleDamageArray);
                         
+                        // STEP 5: Create SINGLE trace for Method 5
+                        console.log('🎯 Method 5: SINGLE CONSOLIDATED trace with', singleDamageArray.length, 'points');
                         traces.push({
-                            x: method5Damages,
-                            y: method5ExceedanceProbs,
-                            name: `Method 5`,
+                            x: singleDamageArray,
+                            y: singleExceedanceArray,
+                            name: 'Method 5',
                             type: 'scatter',
                             mode: 'lines',
-                            line: {
-                                color: '#9467bd', // Purple
-                                width: 2
-                            }
+                            line: { color: '#9467bd', width: 2 }
                         });
                         
-                        // Store Method 5 data globally for update function
                         window.method5ExceedanceData = { 
-                            damages: method5Damages, 
-                            exceedanceProbs: method5ExceedanceProbs, 
-                            sortedResults: sortedMethod5Results 
+                            damages: singleDamageArray, 
+                            exceedanceProbs: singleExceedanceArray, 
+                            sortedResults: consolidatedMethod5Results 
                         };
+                    } else {
+                        console.warn('⚠️ Method 5: No results to consolidate');
                     }
                 }
                 
-                // Method 6 trace (all return periods and hazard levels combined)
+                // Method 6 trace - COMPLETELY FLATTEN ALL RESULTS INTO ONE ARRAY
                 if (window.method6ResultsByPeriod) {
-                    // Combine all Method 6 results from all return periods and hazard levels
-                    const allMethod6Results = [];
+                    console.log('🔍 METHOD 6 CONSOLIDATION:');
+                    console.log('  - Input structure keys:', Object.keys(window.method6ResultsByPeriod));
                     
+                    // STEP 1: Create ONE consolidated array by completely flattening everything
+                    const consolidatedMethod6Results = [];
+                    
+                    // STEP 2: Extract ALL individual simulation results from ALL periods/hazards and ALL buildings
                     Object.keys(window.method6ResultsByPeriod).forEach(periodHazardKey => {
-                        if (window.method6ResultsByPeriod[periodHazardKey] && window.method6ResultsByPeriod[periodHazardKey].length > 0) {
-                            const groupResults = window.method6ResultsByPeriod[periodHazardKey].flatMap(building => building.results);
-                            allMethod6Results.push(...groupResults);
-                        }
+                        const buildingsAtKey = window.method6ResultsByPeriod[periodHazardKey] || [];
+                        console.log(`  - Period/Hazard "${periodHazardKey}": ${buildingsAtKey.length} buildings`);
+                        
+                        buildingsAtKey.forEach((building, buildingIndex) => {
+                            const buildingResults = building.results || [];
+                            console.log(`    Building ${buildingIndex + 1}: ${buildingResults.length} results`);
+                            
+                            // Add each individual result to consolidated array
+                            buildingResults.forEach(result => {
+                                consolidatedMethod6Results.push({
+                                    damage: result.damage,
+                                    frequency: result.frequency,
+                                    intensity: result.intensity,
+                                    vulnerability: result.vulnerability,
+                                    sourcePeriodHazard: periodHazardKey,
+                                    sourceBuildingId: building.buildingId || result.buildingId
+                                });
+                            });
+                        });
                     });
                     
-                    if (allMethod6Results.length > 0) {
-                        // Sort all Method 6 damages in ascending order
-                        const sortedMethod6Results = [...allMethod6Results].sort((a, b) => a.damage - b.damage);
-                        const method6Damages = sortedMethod6Results.map(r => r.damage);
-                        const method6ExceedanceProbs = sortedMethod6Results.map((_, index) => 1 - (index / sortedMethod6Results.length));
+                    console.log(`  - CONSOLIDATED TOTAL: ${consolidatedMethod6Results.length} individual results`);
+                    
+                    if (consolidatedMethod6Results.length > 0) {
+                        // STEP 3: Sort all damages in ascending order
+                        consolidatedMethod6Results.sort((a, b) => a.damage - b.damage);
                         
-                        // Add to all damages for range calculation
-                        allDamages = allDamages.concat(method6Damages);
+                        // STEP 4: Create single damage array and single exceedance probability array
+                        const singleDamageArray = consolidatedMethod6Results.map(r => r.damage);
+                        const singleExceedanceArray = consolidatedMethod6Results.map((_, index) => {
+                            return 1 - (index / consolidatedMethod6Results.length);
+                        });
+
+                        // Debug consolidated results
+                        const uniqueDamages = [...new Set(singleDamageArray)];
+                        const minDamage = Math.min(...singleDamageArray);
+                        const maxDamage = Math.max(...singleDamageArray);
+                        const zeroDamages = singleDamageArray.filter(d => d === 0).length;
+                        console.log('🔍 Method 6 FINAL CONSOLIDATED ANALYSIS:');
+                        console.log(`  - Total consolidated points: ${singleDamageArray.length}`);
+                        console.log(`  - Unique damage values: ${uniqueDamages.length}`);
+                        console.log(`  - Damage range: ${minDamage.toFixed(2)} to ${maxDamage.toFixed(2)}`);
+                        console.log(`  - Zero damages: ${zeroDamages} (${((zeroDamages/singleDamageArray.length)*100).toFixed(1)}%)`);
+
+                        allDamages = allDamages.concat(singleDamageArray);
                         
+                        // STEP 5: Create SINGLE trace for Method 6
+                        console.log('🎯 Method 6: SINGLE CONSOLIDATED trace with', singleDamageArray.length, 'points');
                         traces.push({
-                            x: method6Damages,
-                            y: method6ExceedanceProbs,
-                            name: `Method 6`,
+                            x: singleDamageArray,
+                            y: singleExceedanceArray,
+                            name: 'Method 6',
                             type: 'scatter',
                             mode: 'lines',
-                            line: {
-                                color: '#8c564b', // Brown
-                                width: 2
-                            }
+                            line: { color: '#8c564b', width: 2 }
                         });
                         
-                        // Store Method 6 data globally for update function
                         window.method6ExceedanceData = { 
-                            damages: method6Damages, 
-                            exceedanceProbs: method6ExceedanceProbs, 
-                            sortedResults: sortedMethod6Results 
+                            damages: singleDamageArray, 
+                            exceedanceProbs: singleExceedanceArray, 
+                            sortedResults: consolidatedMethod6Results 
                         };
+                    } else {
+                        console.warn('⚠️ Method 6: No results to consolidate');
                     }
                 }
 
@@ -3413,6 +3642,7 @@ function initializeWorkflow() {
                     },
                     yaxis: {
                         title: 'Exceedance Probability',
+                        // range: [0, 0.125],
                         range: [0, 1],
                         gridcolor: '#eee'
                     },
@@ -3425,6 +3655,21 @@ function initializeWorkflow() {
                 container.innerHTML = '<div id="exceedance-plot" style="width: 100%; height: 470px;"></div>';
                 
                 const plotContainer = document.getElementById('exceedance-plot');
+                
+                console.log(`🎯 FINAL TRACE COUNT: ${traces.length} traces total`);
+                traces.forEach((trace, index) => {
+                    console.log(`  Trace ${index + 1}: "${trace.name}" with ${trace.x.length} points`);
+                    
+                    // Check for duplicate traces (same name)
+                    const duplicates = traces.filter(t => t.name === trace.name);
+                    if (duplicates.length > 1) {
+                        console.error(`❌ DUPLICATE TRACE DETECTED: "${trace.name}" appears ${duplicates.length} times!`);
+                        duplicates.forEach((dup, dupIndex) => {
+                            console.error(`  - Duplicate ${dupIndex + 1}: ${dup.x.length} points`);
+                        });
+                    }
+                });
+                
                 Plotly.newPlot(plotContainer, traces, layout, {responsive: true});
                 
                 // Store data globally for update function
@@ -3467,13 +3712,19 @@ function initializeWorkflow() {
                     let economeTotalDamage = 0;
                     let economeValidCount = 0;
                     
-                    buildings.forEach(building => {
+                    console.log('🔍 Method 1 Debug: Checking DAMAGE values...');
+                    buildings.forEach((building, index) => {
                         const damage = building.DAMAGE;
+                        if (index < 5) { // Log first 5 buildings for debugging
+                            console.log(`  Building ${index + 1}: DAMAGE = ${damage} (type: ${typeof damage})`);
+                        }
                         if (damage !== 'N/A' && damage !== null && damage !== undefined && !isNaN(damage) && damage > 0) {
                             economeTotalDamage += parseFloat(damage);
                             economeValidCount++;
                         }
                     });
+                    
+                    console.log(`🔍 Method 1: Found ${economeValidCount} buildings with valid DAMAGE values, total: ${economeTotalDamage.toFixed(2)} CHF`);
                     
                     if (economeValidCount > 0) {
                         methods.push('Method 1<br>EconoMe Total');
@@ -3484,13 +3735,19 @@ function initializeWorkflow() {
                     let literatureTotalDamage = 0;
                     let literatureValidCount = 0;
                     
-                    buildings.forEach(building => {
+                    console.log('🔍 Method 2 Debug: Checking DAMAGE_LITERATURE values...');
+                    buildings.forEach((building, index) => {
                         const damage = building.DAMAGE_LITERATURE;
+                        if (index < 5) { // Log first 5 buildings for debugging
+                            console.log(`  Building ${index + 1}: DAMAGE_LITERATURE = ${damage} (type: ${typeof damage})`);
+                        }
                         if (damage !== 'N/A' && damage !== null && damage !== undefined && !isNaN(damage) && damage > 0) {
                             literatureTotalDamage += parseFloat(damage);
                             literatureValidCount++;
                         }
                     });
+                    
+                    console.log(`🔍 Method 2: Found ${literatureValidCount} buildings with valid DAMAGE_LITERATURE values, total: ${literatureTotalDamage.toFixed(2)} CHF`);
                     
                     if (literatureValidCount > 0) {
                         methods.push('Method 2<br>Literature Total');
@@ -4235,12 +4492,18 @@ function initializeWorkflow() {
                 // Method 5 statistics - using only NON-ZERO values
                 if (window.method5ResultsByPeriod) {
                     const allMethod5Results = [];
+                    console.log('🔍 Method 5 Debug: Processing results by return period...');
                     Object.keys(window.method5ResultsByPeriod).forEach(returnPeriod => {
                         if (window.method5ResultsByPeriod[returnPeriod] && window.method5ResultsByPeriod[returnPeriod].length > 0) {
-                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => building.results);
+                            console.log(`  - Period ${returnPeriod}: ${window.method5ResultsByPeriod[returnPeriod].length} buildings`);
+                            const periodResults = window.method5ResultsByPeriod[returnPeriod].flatMap(building => {
+                                console.log(`    Building has ${building.results?.length || 0} results`);
+                                return building.results || [];
+                            });
                             allMethod5Results.push(...periodResults);
                         }
                     });
+                    console.log(`🔍 Method 5 Debug: Total combined results: ${allMethod5Results.length}`);
                     
                     if (allMethod5Results.length > 0) {
                         // Filter for non-zero values only
@@ -4908,9 +5171,9 @@ function addHazardToMap(geojson, hazardType = 'hazard') {
                         case 'forte':
                             color = '#d73027'; fillOpacity = 0.8; break;
                         case 'moyenne':
-                            color = '#F6D700'; fillOpacity = 0.6; break;
+                            color = '#4575b4'; fillOpacity = 0.6; break;
                         case 'faible':
-                            color = '#4575b4'; fillOpacity = 0.4; break;
+                            color = '#fcf11bff'; fillOpacity = 0.4; break;
                         default:
                             color = '#999999'; fillOpacity = 0.0; // hide/transparent
                     }
@@ -4947,14 +5210,14 @@ function addHazardToMap(geojson, hazardType = 'hazard') {
                         if (typeof v === 'number') {
                             // numerical mapping (example thresholds) - adjust if you know exact ranges
                             if (v >= 0.66) { color = '#d73027'; fillOpacity = 0.8; }
-                            else if (v >= 0.33) { color = '#fcf11bff'; fillOpacity = 0.6; }
-                            else { color = '#4575b4'; fillOpacity = 0.4; }
+                            else if (v >= 0.33) { color = '#4575b4'; fillOpacity = 0.6; }
+                            else { color = '#fcf11bff'; fillOpacity = 0.4; }
                         } else {
                             // string mapping
                             const s = String(v).trim().toLowerCase();
                             if (s.match(/forte|high|élevé|eleve|elev/)) { color = '#d73027'; fillOpacity = 0.8; }
-                            else if (s.match(/moyenne|mean|moyen|moderate/)) { color = '#fcf11bff'; fillOpacity = 0.6; }
-                            else if (s.match(/faible|low|faibl/)) { color = '#4575b4'; fillOpacity = 0.4; }
+                            else if (s.match(/moyenne|mean|moyen|moderate/)) { color = '#4575b4'; fillOpacity = 0.6; }
+                            else if (s.match(/faible|low|faibl/)) { color = '#fcf11bff'; fillOpacity = 0.4; }
                             else {
                                 // unknown string -> deterministic color by hashing string
                                 const str = s || (found.key + '::' + JSON.stringify(v));
@@ -5445,8 +5708,14 @@ async function fetchAndDisplayHazardLayer(hazardType, bbox) {
         }));
         const allFeatures = responses
             .filter(j => j && j.features)
-            .flatMap(j => j.features);
-        console.log('  Total combined features:', allFeatures.length);
+            .flatMap(j => j.features)
+            .filter(feature => {
+                // Filter out aucune_atteinte features from hazard maps
+                const intensity = feature.properties?.classe_d_intensites || feature.properties?.intensity_ || feature.properties?.intensity || '';
+                const intensityLower = String(intensity).toLowerCase().trim();
+                return intensityLower !== 'aucune_atteinte' && intensityLower !== 'aucune atteinte';
+            });
+        console.log('  Total combined features:', allFeatures.length, '(after filtering out aucune_atteinte)');
         if (allFeatures.length === 0) {
             alert('No hazard features found in the combined GeoJSON data.');
             return;
@@ -6125,6 +6394,500 @@ function flattenCoordinates(coordinates) {
     flatten(coordinates);
     return result;
 }
+
+// ==================== CAT MODEL CSV EXPORT FUNCTIONALITY ====================
+
+/**
+ * Export CAT Model results (Methods 3, 4, 5, 6) to CSV format
+ */
+function exportCATResultsToCSV() {
+    console.log('📊 Starting CAT Model results CSV export...');
+    
+    try {
+        // Check if any CAT model results exist
+        const hasMethod3 = window.method3Results && window.method3Results.length > 0;
+        const hasMethod4 = window.method4Results && window.method4Results.length > 0;
+        const hasMethod5 = window.method5Results && window.method5Results.length > 0;
+        const hasMethod6 = window.method6Results && window.method6Results.length > 0;
+        
+        if (!hasMethod3 && !hasMethod4 && !hasMethod5 && !hasMethod6) {
+            alert('❌ No CAT Model results found. Please run the analysis first.');
+            return;
+        }
+        
+        console.log(`📈 Found results - Method 3: ${hasMethod3 ? window.method3Results.length : 0}, Method 4: ${hasMethod4 ? window.method4Results.length : 0}, Method 5: ${hasMethod5 ? window.method5Results.length : 0}, Method 6: ${hasMethod6 ? window.method6Results.length : 0}`);
+        
+        // CSV headers
+        const headers = [
+            'Method',
+            'simulation_number', 
+            'building_id',
+            'return_period',
+            'intensity_level',
+            'intensity_calculated',
+            'vulnerability',
+            'weight_frequency',
+            'weight_intensity',
+            'building_cost',
+            'damage'
+        ];
+        
+        // Start CSV content with explanation
+        let csvContent = '# CAT Model Results Export\n';
+        csvContent += '# Individual simulation data below\n';
+        csvContent += '# For comparison graph values see building summaries at the end\n';
+        csvContent += '#\n';
+        csvContent += headers.join(',') + '\n';
+        
+        // Process Method 3 results
+        if (hasMethod3) {
+            console.log('📋 Processing Method 3 results...');
+            window.method3Results.forEach((result, index) => {
+                const row = [
+                    'Method_3',
+                    result.simulation || (index + 1),
+                    `"${result.buildingId || 'unknown'}"`, // Use stored building ID
+                    '', // No return period for Method 3
+                    '', // No intensity level for Method 3 
+                    result.intensity || 0,
+                    result.vulnerability || 0,
+                    '', // Method 3 doesn't use weighted frequency in current implementation
+                    '', // Method 3 doesn't use weighted intensity in current implementation
+                    result.buildingCost || 0,
+                    result.damage || 0
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+        }
+        
+        // Process Method 4 results
+        if (hasMethod4) {
+            console.log('📋 Processing Method 4 results...');
+            window.method4Results.forEach((result, index) => {
+                const row = [
+                    'Method_4',
+                    result.simulation || (index + 1),
+                    `"${result.buildingId || 'unknown'}"`, // Use stored building ID
+                    result.returnPeriod || '',
+                    `"${result.hazardIntensity || ''}"`, // Wrap in quotes for intensity level text
+                    result.intensity || 0,
+                    result.vulnerability || 0,
+                    result.frequenceEconoMe4 || '', // Using stored EconoMe frequency
+                    result.weightedIntensity || '', // Using stored weighted intensity
+                    result.buildingCost || 0,
+                    result.damage || 0
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+        }
+        
+        // Process Method 5 results
+        if (hasMethod5) {
+            console.log('📋 Processing Method 5 results...');
+            window.method5Results.forEach((result, index) => {
+                const row = [
+                    'Method_5',
+                    result.simulation || (index + 1),
+                    `"${result.buildingId || 'unknown'}"`, // Use stored building ID
+                    result.returnPeriod || '',
+                    '', // No intensity level for Method 5
+                    result.intensity || 0,
+                    result.vulnerability || 0,
+                    result.frequenceEconoMe5 || '', // Using stored EconoMe frequency
+                    result.weightedIntensity || '', // Using stored weighted intensity
+                    result.buildingCost || 0,
+                    result.damage || 0
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+        }
+        
+        // Process Method 6 results
+        if (hasMethod6) {
+            console.log('📋 Processing Method 6 results...');
+            window.method6Results.forEach((result, index) => {
+                const row = [
+                    'Method_6',
+                    result.simulation || (index + 1),
+                    `"${result.buildingId || 'unknown'}"`, // Use stored building ID
+                    result.returnPeriod || '',
+                    `"${result.hazardLevel || ''}"`, // Wrap in quotes for hazard level text
+                    result.intensity || 0,
+                    result.vulnerability || 0,
+                    result.frequenceEconoMe6 || '', // Using stored EconoMe frequency
+                    result.weightedIntensity || '', // Using stored weighted intensity
+                    result.buildingCost || 0,
+                    result.damage || 0
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+        }
+        
+        // Add building summaries section to CSV
+        csvContent += '\n\n# BUILDING SUMMARIES (Per-building mean damages)\n';
+        csvContent += 'building_id,method_3_mean_damage,method_4_mean_damage,method_5_mean_damage,method_6_mean_damage,building_cost,hazard_intensity,return_period\n';
+        
+        if (window.latestExtractionResults?.buildingsAnalyzed) {
+            window.latestExtractionResults.buildingsAnalyzed.forEach((building, index) => {
+                const egid = building.EGID || building.properties?.EGID || `building_${index + 1}`;
+                const row = [
+                    `"${egid}"`,
+                    building.METHOD3_MEAN_DAMAGE || 0,
+                    building.METHOD4_MEAN_DAMAGE || 0,
+                    building.METHOD5_MEAN_DAMAGE || 0,
+                    building.METHOD6_MEAN_DAMAGE || 0,
+                    building.TOTAL_COST || building.properties?.TOTAL_COST || 0,
+                    `"${building.intensity || ''}"`,
+                    `"${building.recurrence || ''}"`
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+        }
+        
+        // Add comparison totals section to CSV (explains graph values)
+        csvContent += '\n\n# COMPARISON GRAPH VALUES (Total damage sums)\n';
+        csvContent += 'method,buildings_count,total_damage_CHF,calculation,note\n';
+        
+        if (window.latestExtractionResults?.buildingsAnalyzed) {
+            const buildings = window.latestExtractionResults.buildingsAnalyzed;
+            
+            // Method 3 total
+            const method3Buildings = buildings.filter(b => b.METHOD3_MEAN_DAMAGE > 0);
+            if (method3Buildings.length > 0) {
+                const total3 = method3Buildings.reduce((sum, b) => sum + b.METHOD3_MEAN_DAMAGE, 0);
+                csvContent += `Method_3,${method3Buildings.length},${total3},"Sum of each building mean damage","This matches the comparison graph value"\n`;
+            }
+            
+            // Method 4 total
+            const method4Buildings = buildings.filter(b => b.METHOD4_MEAN_DAMAGE > 0);
+            if (method4Buildings.length > 0) {
+                const total4 = method4Buildings.reduce((sum, b) => sum + b.METHOD4_MEAN_DAMAGE, 0);
+                csvContent += `Method_4,${method4Buildings.length},${total4},"Sum of each building mean damage","This matches the comparison graph value"\n`;
+            }
+            
+            // Method 5 total
+            const method5Buildings = buildings.filter(b => b.METHOD5_MEAN_DAMAGE > 0);
+            if (method5Buildings.length > 0) {
+                const total5 = method5Buildings.reduce((sum, b) => sum + b.METHOD5_MEAN_DAMAGE, 0);
+                csvContent += `Method_5,${method5Buildings.length},${total5},"Sum of each building mean damage","This matches the comparison graph value"\n`;
+            }
+            
+            // Method 6 total
+            const method6Buildings = buildings.filter(b => b.METHOD6_MEAN_DAMAGE > 0);
+            if (method6Buildings.length > 0) {
+                const total6 = method6Buildings.reduce((sum, b) => sum + b.METHOD6_MEAN_DAMAGE, 0);
+                csvContent += `Method_6,${method6Buildings.length},${total6},"Sum of each building mean damage","This matches the comparison graph value"\n`;
+            }
+        }
+        
+        // Create and download CSV file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            
+            // Generate filename with timestamp
+            const now = new Date();
+            const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-');
+            const filename = `CAT_Model_Results_${timestamp}.csv`;
+            
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`✅ CSV export completed: ${filename}`);
+            alert(`✅ CAT Model results exported successfully!\nFile: ${filename}`);
+        } else {
+            throw new Error('CSV download not supported in this browser');
+        }
+        
+    } catch (error) {
+        console.error('❌ CSV export failed:', error);
+        alert('❌ Failed to export CSV. Please check the console for details.');
+    }
+}
+
+/**
+ * Export CAT Model results to Excel format with multiple sheets
+ */
+function exportCATResultsToExcel() {
+    console.log('📊 Starting CAT Model results Excel export...');
+    
+    try {
+        // Check if SheetJS is available
+        if (typeof XLSX === 'undefined') {
+            alert('❌ Excel export library not available. Please refresh the page and try again.');
+            return;
+        }
+        
+        // Check if any CAT model results exist
+        const hasMethod3 = window.method3Results && window.method3Results.length > 0;
+        const hasMethod4 = window.method4Results && window.method4Results.length > 0;
+        const hasMethod5 = window.method5Results && window.method5Results.length > 0;
+        const hasMethod6 = window.method6Results && window.method6Results.length > 0;
+        
+        if (!hasMethod3 && !hasMethod4 && !hasMethod5 && !hasMethod6) {
+            alert('❌ No CAT Model results found. Please run the analysis first.');
+            return;
+        }
+        
+        console.log(`📈 Found results - Method 3: ${hasMethod3 ? window.method3Results.length : 0}, Method 4: ${hasMethod4 ? window.method4Results.length : 0}, Method 5: ${hasMethod5 ? window.method5Results.length : 0}, Method 6: ${hasMethod6 ? window.method6Results.length : 0}`);
+        
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        
+        // Create simulation results data for all methods
+        const allSimulations = [];
+        
+        // Add Method 3 results
+        if (hasMethod3) {
+            window.method3Results.forEach((result, index) => {
+                allSimulations.push({
+                    Method: 'Method_3',
+                    simulation_number: result.simulation || (index + 1),
+                    building_id: result.buildingId || 'unknown',
+                    return_period: '',
+                    intensity_level: '',
+                    intensity_calculated: result.intensity || 0,
+                    vulnerability: result.vulnerability || 0,
+                    weight_frequency: '',
+                    weight_intensity: '',
+                    building_cost: result.buildingCost || 0,
+                    damage: result.damage || 0
+                });
+            });
+        }
+        
+        // Add Method 4 results
+        if (hasMethod4) {
+            window.method4Results.forEach((result, index) => {
+                allSimulations.push({
+                    Method: 'Method_4',
+                    simulation_number: result.simulation || (index + 1),
+                    building_id: result.buildingId || 'unknown',
+                    return_period: result.returnPeriod || '',
+                    intensity_level: result.hazardIntensity || '',
+                    intensity_calculated: result.intensity || 0,
+                    vulnerability: result.vulnerability || 0,
+                    weight_frequency: result.frequenceEconoMe4 || '',
+                    weight_intensity: result.weightedIntensity || '',
+                    building_cost: result.buildingCost || 0,
+                    damage: result.damage || 0
+                });
+            });
+        }
+        
+        // Add Method 5 results
+        if (hasMethod5) {
+            window.method5Results.forEach((result, index) => {
+                allSimulations.push({
+                    Method: 'Method_5',
+                    simulation_number: result.simulation || (index + 1),
+                    building_id: result.buildingId || 'unknown',
+                    return_period: result.returnPeriod || '',
+                    intensity_level: '',
+                    intensity_calculated: result.intensity || 0,
+                    vulnerability: result.vulnerability || 0,
+                    weight_frequency: result.frequenceEconoMe5 || '',
+                    weight_intensity: result.weightedIntensity || '',
+                    building_cost: result.buildingCost || 0,
+                    damage: result.damage || 0
+                });
+            });
+        }
+        
+        // Add Method 6 results
+        if (hasMethod6) {
+            window.method6Results.forEach((result, index) => {
+                allSimulations.push({
+                    Method: 'Method_6',
+                    simulation_number: result.simulation || (index + 1),
+                    building_id: result.buildingId || 'unknown',
+                    return_period: result.returnPeriod || '',
+                    intensity_level: result.hazardLevel || '',
+                    intensity_calculated: result.intensity || 0,
+                    vulnerability: result.vulnerability || 0,
+                    weight_frequency: result.frequenceEconoMe6 || '',
+                    weight_intensity: result.weightedIntensity || '',
+                    building_cost: result.buildingCost || 0,
+                    damage: result.damage || 0
+                });
+            });
+        }
+        
+        // Create simulation results worksheet
+        const wsSimulations = XLSX.utils.json_to_sheet(allSimulations);
+        XLSX.utils.book_append_sheet(wb, wsSimulations, 'All_Simulations');
+        
+        // Create building summaries sheet (matches comparison graph logic)
+        const buildingSummaries = [];
+        if (window.latestExtractionResults?.buildingsAnalyzed) {
+            const buildings = window.latestExtractionResults.buildingsAnalyzed;
+            
+            buildings.forEach((building, index) => {
+                const egid = building.EGID || building.properties?.EGID || `building_${index + 1}`;
+                
+                buildingSummaries.push({
+                    building_id: egid,
+                    method_3_mean_damage: building.METHOD3_MEAN_DAMAGE || 0,
+                    method_4_mean_damage: building.METHOD4_MEAN_DAMAGE || 0,
+                    method_5_mean_damage: building.METHOD5_MEAN_DAMAGE || 0,
+                    method_6_mean_damage: building.METHOD6_MEAN_DAMAGE || 0,
+                    building_cost: building.TOTAL_COST || building.properties?.TOTAL_COST || 0,
+                    hazard_intensity: building.intensity || '',
+                    return_period: building.recurrence || ''
+                });
+            });
+        }
+        
+        if (buildingSummaries.length > 0) {
+            const wsBuildingSummaries = XLSX.utils.json_to_sheet(buildingSummaries);
+            XLSX.utils.book_append_sheet(wb, wsBuildingSummaries, 'Building_Summaries');
+        }
+        
+        // Create comparison totals sheet (explains graph values)
+        const comparisonTotals = [];
+        if (window.latestExtractionResults?.buildingsAnalyzed) {
+            const buildings = window.latestExtractionResults.buildingsAnalyzed;
+            
+            // Calculate totals as shown in comparison graph
+            const method3Buildings = buildings.filter(b => b.METHOD3_MEAN_DAMAGE > 0);
+            const method4Buildings = buildings.filter(b => b.METHOD4_MEAN_DAMAGE > 0);
+            const method5Buildings = buildings.filter(b => b.METHOD5_MEAN_DAMAGE > 0);
+            const method6Buildings = buildings.filter(b => b.METHOD6_MEAN_DAMAGE > 0);
+            
+            if (method3Buildings.length > 0) {
+                const total = method3Buildings.reduce((sum, b) => sum + b.METHOD3_MEAN_DAMAGE, 0);
+                comparisonTotals.push({
+                    method: 'Method_3',
+                    buildings_count: method3Buildings.length,
+                    total_damage_CHF: total,
+                    calculation: 'Sum of each building mean damage',
+                    note: 'This matches the comparison graph value'
+                });
+            }
+            
+            if (method4Buildings.length > 0) {
+                const total = method4Buildings.reduce((sum, b) => sum + b.METHOD4_MEAN_DAMAGE, 0);
+                comparisonTotals.push({
+                    method: 'Method_4',
+                    buildings_count: method4Buildings.length,
+                    total_damage_CHF: total,
+                    calculation: 'Sum of each building mean damage',
+                    note: 'This matches the comparison graph value'
+                });
+            }
+            
+            if (method5Buildings.length > 0) {
+                const total = method5Buildings.reduce((sum, b) => sum + b.METHOD5_MEAN_DAMAGE, 0);
+                comparisonTotals.push({
+                    method: 'Method_5',
+                    buildings_count: method5Buildings.length,
+                    total_damage_CHF: total,
+                    calculation: 'Sum of each building mean damage',
+                    note: 'This matches the comparison graph value'
+                });
+            }
+            
+            if (method6Buildings.length > 0) {
+                const total = method6Buildings.reduce((sum, b) => sum + b.METHOD6_MEAN_DAMAGE, 0);
+                comparisonTotals.push({
+                    method: 'Method_6',
+                    buildings_count: method6Buildings.length,
+                    total_damage_CHF: total,
+                    calculation: 'Sum of each building mean damage',
+                    note: 'This matches the comparison graph value'
+                });
+            }
+        }
+        
+        if (comparisonTotals.length > 0) {
+            const wsComparisonTotals = XLSX.utils.json_to_sheet(comparisonTotals);
+            XLSX.utils.book_append_sheet(wb, wsComparisonTotals, 'Comparison_Graph_Values');
+        }
+        
+        // Create validation sheet to explain calculation differences
+        const validationData = [];
+        
+        // Add explanatory header information
+        validationData.push({
+            calculation_type: 'EXPLANATION',
+            description: 'Why Excel mean ≠ Building mean damages',
+            method_3: 'Per-building calculation',
+            method_4: 'Per-building calculation', 
+            method_5: 'Per-building calculation',
+            method_6: 'Per-building calculation',
+            note: 'Each building processed individually'
+        });
+        
+        validationData.push({
+            calculation_type: 'All_Simulations_Sheet',
+            description: 'Mean of all simulations combined',
+            method_3: hasMethod3 ? (window.method3Results.reduce((sum, r) => sum + r.damage, 0) / window.method3Results.length).toFixed(2) : 'N/A',
+            method_4: hasMethod4 ? (window.method4Results.reduce((sum, r) => sum + r.damage, 0) / window.method4Results.length).toFixed(2) : 'N/A',
+            method_5: hasMethod5 ? (window.method5Results.reduce((sum, r) => sum + r.damage, 0) / window.method5Results.length).toFixed(2) : 'N/A',
+            method_6: hasMethod6 ? (window.method6Results.reduce((sum, r) => sum + r.damage, 0) / window.method6Results.length).toFixed(2) : 'N/A',
+            note: 'This is what you get when you average All_Simulations sheet'
+        });
+        
+        // Calculate per-building means
+        if (window.latestExtractionResults?.buildingsAnalyzed) {
+            const buildings = window.latestExtractionResults.buildingsAnalyzed;
+            
+            // Average of building means (comparison graph uses sum, not average)
+            const validBuildings3 = buildings.filter(b => b.METHOD3_MEAN_DAMAGE > 0);
+            const validBuildings4 = buildings.filter(b => b.METHOD4_MEAN_DAMAGE > 0);
+            const validBuildings5 = buildings.filter(b => b.METHOD5_MEAN_DAMAGE > 0);
+            const validBuildings6 = buildings.filter(b => b.METHOD6_MEAN_DAMAGE > 0);
+            
+            validationData.push({
+                calculation_type: 'Building_Summaries_Average',
+                description: 'Average of building mean damages',
+                method_3: validBuildings3.length > 0 ? (validBuildings3.reduce((sum, b) => sum + b.METHOD3_MEAN_DAMAGE, 0) / validBuildings3.length).toFixed(2) : 'N/A',
+                method_4: validBuildings4.length > 0 ? (validBuildings4.reduce((sum, b) => sum + b.METHOD4_MEAN_DAMAGE, 0) / validBuildings4.length).toFixed(2) : 'N/A',
+                method_5: validBuildings5.length > 0 ? (validBuildings5.reduce((sum, b) => sum + b.METHOD5_MEAN_DAMAGE, 0) / validBuildings5.length).toFixed(2) : 'N/A',
+                method_6: validBuildings6.length > 0 ? (validBuildings6.reduce((sum, b) => sum + b.METHOD6_MEAN_DAMAGE, 0) / validBuildings6.length).toFixed(2) : 'N/A',
+                note: 'Average of values in Building_Summaries sheet'
+            });
+            
+            validationData.push({
+                calculation_type: 'Building_Summaries_Sum',
+                description: 'Sum of building mean damages',
+                method_3: validBuildings3.length > 0 ? validBuildings3.reduce((sum, b) => sum + b.METHOD3_MEAN_DAMAGE, 0).toFixed(2) : 'N/A',
+                method_4: validBuildings4.length > 0 ? validBuildings4.reduce((sum, b) => sum + b.METHOD4_MEAN_DAMAGE, 0).toFixed(2) : 'N/A',
+                method_5: validBuildings5.length > 0 ? validBuildings5.reduce((sum, b) => sum + b.METHOD5_MEAN_DAMAGE, 0).toFixed(2) : 'N/A',
+                method_6: validBuildings6.length > 0 ? validBuildings6.reduce((sum, b) => sum + b.METHOD6_MEAN_DAMAGE, 0).toFixed(2) : 'N/A',
+                note: 'Sum of values in Building_Summaries sheet (= Comparison_Graph_Values)'
+            });
+        }
+        
+        const wsValidation = XLSX.utils.json_to_sheet(validationData);
+        XLSX.utils.book_append_sheet(wb, wsValidation, 'Calculation_Validation');
+        
+        // Generate filename with timestamp
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-');
+        const filename = `CAT_Model_Results_${timestamp}.xlsx`;
+        
+        // Write and download Excel file
+        XLSX.writeFile(wb, filename);
+        
+        console.log(`✅ Excel export completed: ${filename}`);
+        alert(`✅ CAT Model results exported to Excel successfully!\nFile: ${filename}\n\nSheets included:\n• All_Simulations: Individual simulation data\n• Building_Summaries: Per-building mean damages\n• Comparison_Graph_Values: Totals shown in comparison graph\n• Calculation_Validation: Explains why different calculations give different means\n\n⚠️ Note: The mean of All_Simulations ≠ Building mean damages because each building is processed individually with different parameters.`);
+        
+    } catch (error) {
+        console.error('❌ Excel export failed:', error);
+        alert('❌ Failed to export Excel. Please check the console for details.');
+    }
+}
+
+// Make the export functions globally available
+window.exportCATResultsToCSV = exportCATResultsToCSV;
+window.exportCATResultsToExcel = exportCATResultsToExcel;
 
 // Start when DOM is ready
 if (document.readyState === 'loading') {

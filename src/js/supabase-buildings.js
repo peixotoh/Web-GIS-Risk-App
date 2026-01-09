@@ -22,7 +22,11 @@ const SUPABASE_CONFIG = {
 // loadBuildingsFromSupabase(), removeBuildingsFromMap(), showAttributesTable()
 
 if (typeof window.supabaseClient === 'undefined') window.supabaseClient = null; // alternate name if used elsewhere
-let supabase; // local reference to client
+
+// Prevent redeclaration error - check if supabase is already declared
+if (typeof supabase === 'undefined') {
+    var supabase = window.supabaseClient; // local reference to client, initialize from global if available
+}
 // Supabase fetch configuration
 // PostgREST (Supabase REST) defaults to 1000 rows when no explicit range/limit is provided.
 // To avoid silently returning only 1000 rows when a bbox covers a large area, request an

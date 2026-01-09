@@ -830,15 +830,15 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                     // Method 6: Check hazard level and calculate intensity
                     if (hazardLevel) {
                         if (hazardLevel === 'low' || hazardLevel === 'faible') {
-                            int_6 = (Math.random() * (30 - 10)) + 10;
+                            int_6 = (Math.random() * (30 - 1)) + 1;
                             frequenceEconoMe6 = (1/30) - (1/100);
                             weightedIntensity6 = (1/967);
                         } else if (hazardLevel === 'mean' || hazardLevel === 'moyenne') {
-                            int_6 = (Math.random() * (300 - 30)) + 30;
+                            int_6 = (Math.random() * (100 - 30)) + 30;
                             frequenceEconoMe6 = (1/100) - (1/300);
                             weightedIntensity6 = (1/23);
                         } else if (hazardLevel === 'high' || hazardLevel === 'forte') {
-                            int_6 = (Math.random() * (650 - 300)) + 300;
+                            int_6 = (Math.random() * (650 - 100)) + 100;
                             frequenceEconoMe6 = (1/300);
                             weightedIntensity6 = (1/10);
                         }

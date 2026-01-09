@@ -37,6 +37,76 @@
 
 console.log('📊 Data Processing module loading...');
 
+// ==================== COORDINATE TRANSFORMATION FUNCTIONS ====================
+
+/**
+ * Convert Swiss LV95 coordinates to WGS84 (World Geodetic System 1984)
+ * Based on proven transformation formulas used in Swiss applications
+ * @param {number} east - Swiss LV95 Easting coordinate
+ * @param {number} north - Swiss LV95 Northing coordinate
+ * @returns {Object} Object with lat and lng properties in WGS84
+ */
+function swissToWGS84(east, north) {
+    try {
+        // Validate input coordinates
+        if (isNaN(east) || isNaN(north)) {
+            console.warn('⚠️ Invalid coordinates provided to swissToWGS84');
+            return { lat: 46.8, lng: 8.2 }; // Default Swiss center
+        }
+        
+        // Check if coordinates are in valid Swiss LV95 range
+        if (east < 2400000 || east > 3000000 || north < 1000000 || north > 1400000) {
+            console.warn('⚠️ Coordinates outside valid Swiss LV95 range');
+            // Try to handle if coordinates might be in older LV03 system
+            if (east < 900000 && north < 350000) {
+                // Convert LV03 to LV95
+                east = east + 2000000;
+                north = north + 1000000;
+            } else {
+                console.warn(`⚠️ Coordinates [${east}, ${north}] outside expected range, using as-is`);
+            }
+        }
+        
+        // Swiss LV95 to WGS84 transformation - Official Swisstopo approximation formula
+        // Auxiliary values (differences to Bern in 1000km units)
+        const y_aux = (east - 2600000) / 1000000;
+        const x_aux = (north - 1200000) / 1000000;
+        
+        // Longitude calculation (λ in decimal degrees)
+        const lambda = 2.6779094 + 
+                      4.728982 * y_aux + 
+                      0.791484 * y_aux * x_aux + 
+                      0.1306 * y_aux * x_aux * x_aux - 
+                      0.0436 * y_aux * y_aux * y_aux;
+        
+        // Latitude calculation (φ in decimal degrees)  
+        const phi = 16.9023892 + 
+                   3.238272 * x_aux - 
+                   0.270978 * y_aux * y_aux - 
+                   0.002528 * x_aux * x_aux - 
+                   0.0447 * y_aux * y_aux * x_aux - 
+                   0.0140 * x_aux * x_aux * x_aux;
+        
+        // Convert to decimal degrees and apply WGS84 offset
+        const longitude = lambda * 100 / 36; // Convert from centesimal to decimal degrees
+        const latitude = phi * 100 / 36;     // Convert from centesimal to decimal degrees
+        
+        return {
+            lat: latitude,
+            lng: longitude
+        };
+        
+    } catch (error) {
+        console.error('❌ Error in Swiss coordinate transformation:', error);
+        return { lat: 46.8, lng: 8.2 }; // Default Swiss center
+    }
+}
+
+// Make swissToWGS84 available globally
+if (typeof window !== 'undefined') {
+    window.swissToWGS84 = swissToWGS84;
+}
+
 // ==================== HAZARD TYPE SELECTION ====================
 
 /**
@@ -624,6 +694,7 @@ window.loadCustomHazardDataToMap = loadCustomHazardDataToMap;
 window.loadCustomBuildingsDataToMap = loadCustomBuildingsDataToMap;
 window.detectAndTransformCoordinates = detectAndTransformCoordinates;
 window.transformSwissToWGS84 = transformSwissToWGS84;
+window.swissToWGS84 = swissToWGS84; // Make coordinate transformation function globally available
 window.getSelectedHazardType = getSelectedHazardType;
 
 console.log('✅ Data Processing module loaded successfully');

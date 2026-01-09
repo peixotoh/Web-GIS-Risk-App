@@ -640,8 +640,8 @@ function initializeWorkflow() {
                         if (index < 3) {
                             console.log(`🔍 Building ${index + 1} properties:`, props);
                             console.log(`🔍 Building ${index + 1} keys:`, Object.keys(props));
-                            console.log(`🔍 Building ${index + 1} EGID:`, building.EGID || props.EGID || 'missing');
-                            console.log(`🔍 Building ${index + 1} GKLAS:`, building.GKLAS || props.GKLAS || 'missing');
+                            console.log(`🔍 Building ${index + 1} EGID:`, building.EGID || props.EGID || props.egid || building.egid || 'missing');
+                            console.log(`🔍 Building ${index + 1} GKLAS:`, building.GKLAS || props.GKLAS || props.buildingCl || building.buildingCl || 'missing');
                         }
                         
                         // Create comprehensive variables for building properties
@@ -653,7 +653,7 @@ function initializeWorkflow() {
                                            (props.stockwerke !== "N/A" && props.stockwerke !== null) ? props.stockwerke : 2;
                         let numberOfApartments = (props.GANZWHG !== "N/A" && props.GANZWHG !== null) ? props.GANZWHG : 
                                                (props.wohnungen !== "N/A" && props.wohnungen !== null) ? props.wohnungen : 1;
-                        let buildingClass = props.GKLAS || props.klasse || building.GKLAS;
+                        let buildingClass = props.GKLAS || props.klasse || props.buildingCl || building.GKLAS || building.buildingCl;
                         let constructionPeriod = props.GBAUP || props.bauperiode;
                         let coordinateE = props.GKODE || building.geometry?.coordinates?.[0];
                         let coordinateN = props.GKODN || building.geometry?.coordinates?.[1];
@@ -827,9 +827,12 @@ function initializeWorkflow() {
                         // Step 5: Temporal Hazard Probability - calculate using temporaHazardProbability function
                         let temporalHazardProb = 'N/A';
                         
-                        if (building?.recurrence && window.temporaHazardProbability && window.selectedHazard) {
-                            // Extract return period number from recurrence string
-                            const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                        // Support multiple field names for return period: recurrence, return_per, returnPeriod
+                        const recurrenceValue = building?.recurrence || building?.return_per || building?.returnPeriod || hazardProps?.return_per || hazardProps?.recurrence;
+                        
+                        if (recurrenceValue && window.temporaHazardProbability && window.selectedHazard) {
+                            // Extract return period number from recurrence string or use directly if numeric
+                            const returnPeriod = typeof recurrenceValue === 'number' ? recurrenceValue : parseInt(String(recurrenceValue).match(/\d+/)?.[0]);
                             
                             if (returnPeriod) {
                                 temporalHazardProb = window.temporaHazardProbability(window.selectedHazard, returnPeriod) || 'N/A';
@@ -843,9 +846,12 @@ function initializeWorkflow() {
                         // Function now available from enhanced spatial-analysis.js module
                         let spatialHazardProb = 'N/A';
                         
-                        if (building?.recurrence && typeof window.spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
-                            // Extract return period number from recurrence string
-                            const returnPeriod = parseInt(String(building.recurrence).match(/\d+/)?.[0]);
+                        // Support multiple field names for return period: recurrence, return_per, returnPeriod
+                        const recurrenceValueSpatial = building?.recurrence || building?.return_per || building?.returnPeriod || hazardProps?.return_per || hazardProps?.recurrence;
+                        
+                        if (recurrenceValueSpatial && typeof window.spatialHazardProbValdorisk === 'function' && window.selectedHazard) {
+                            // Extract return period number from recurrence string or use directly if numeric
+                            const returnPeriod = typeof recurrenceValueSpatial === 'number' ? recurrenceValueSpatial : parseInt(String(recurrenceValueSpatial).match(/\d+/)?.[0]);
                             
                             if (returnPeriod) {
                                 // Debug logging for Step 6
@@ -870,12 +876,15 @@ function initializeWorkflow() {
                         // Step 7: Vulnerability (EconoMe) - based on GKLAS and hazard intensity
                         let vulnerability = 'N/A';
                         
-                        if (buildingClass && building.intensity && window.buildings) {
+                        // Support multiple field names for intensity: intensity, intensity_ (with underscore)
+                        const intensityValue = building.intensity || building.intensity_ || hazardProps?.intensity || hazardProps?.intensity_;
+                        
+                        if (buildingClass && intensityValue && window.buildings) {
                             // Debug logging for Step 7
                             if (index < 3) {
                                 console.log(`🔧 Step 7 Debug Building ${index + 1}:`);
                                 console.log(`  - Building Class (GKLAS): ${buildingClass}`);
-                                console.log(`  - Hazard Intensity: ${building.intensity}`);
+                                console.log(`  - Hazard Intensity: ${intensityValue}`);
                             }
                             
                             // Find building info based on GKLAS
@@ -886,11 +895,11 @@ function initializeWorkflow() {
                             if (buildingInfo && buildingInfo.vulnerabilite) {
                                 // Map intensity to vulnerability key
                                 let intensityKey = null;
-                                const intensity = String(building.intensity).toLowerCase();
+                                const intensity = String(intensityValue).toLowerCase();
                                 
                                 if (intensity.includes('faible') || intensity.includes('low')) {
                                     intensityKey = 'faible';
-                                } else if (intensity.includes('moyenne') || intensity.includes('medium')) {
+                                } else if (intensity.includes('moyenne') || intensity.includes('medium') || intensity.includes('mean')) {
                                     intensityKey = 'moyenne';
                                 } else if (intensity.includes('forte') || intensity.includes('high')) {
                                     intensityKey = 'forte';
@@ -991,9 +1000,11 @@ function initializeWorkflow() {
                             }
                             
                             // Map intensity level to function expected format
+                            // Support multiple field names for intensity: intensity, intensity_ (with underscore)
+                            const intensityValueLit = building.intensity || building.intensity_ || hazardProps?.intensity || hazardProps?.intensity_;
                             let intensityLevel = null;
-                            if (building.intensity) {
-                                const intensity = String(building.intensity).toLowerCase();
+                            if (intensityValueLit) {
+                                const intensity = String(intensityValueLit).toLowerCase();
                                 if (intensity.includes('faible') || intensity.includes('low')) {
                                     intensityLevel = 'low';
                                 } else if (intensity.includes('moyenne') || intensity.includes('medium') || intensity.includes('mean')) {
@@ -1014,7 +1025,7 @@ function initializeWorkflow() {
                                     console.log(`  - Construction period year: ${building.buildingProperties?.GBAUP_YEAR}`);
                                     console.log(`  - Final year used: ${year}`);
                                     console.log(`  - Hazard type: ${window.selectedHazard} → ${hazard}`);
-                                    console.log(`  - Intensity: ${building.intensity} → ${intensityLevel}`);
+                                    console.log(`  - Intensity: ${intensityValueLit} → ${intensityLevel}`);
                                     console.log(`  - vulBorterBart(${hazard}, ${year}, ${intensityLevel}) = ${vulnerabilityLiterature}`);
                                 }
                             } else {
@@ -1468,20 +1479,30 @@ function initializeWorkflow() {
                         const buildCost = building.TOTAL_COST || props.TOTAL_COST || 1000000;
                         
                         // Extract EGID for building identification
-                        const egid = building.EGID || props.EGID || `building_${index + 1}`;
+                        // Support multiple field names: EGID, egid
+                        const egid = building.EGID || props.EGID || building.egid || props.egid || `building_${index + 1}`;
                         
                         // Try both locations for GKLAS (direct on building or in buildingProperties)
-                        const gklas = building.GKLAS || props.GKLAS;
+                        const gklas = building.GKLAS || props.GKLAS || props.buildingCl || building.buildingCl;
                         
                         // Get hazard intensity for Method 6 (same as Method 4)
-                        const hazardLevel = building.intensity || null; // Method 6 requires hazard level
+                        // Support multiple field names: intensity, intensity_
+                        const hazardLevel = building.intensity || building.intensity_ || building.hazardProperties?.intensity || building.hazardProperties?.intensity_ || null; // Method 6 requires hazard level
                         
                         // Extract return period from recurrence field
+                        // Support multiple field names: recurrence, return_per, returnPeriod
                         let returnPeriod = 100; // default
-                        if (building.recurrence) {
-                            const match = String(building.recurrence).match(/\d+/);
-                            if (match) {
-                                returnPeriod = parseInt(match[0]);
+                        const recurrenceField = building.recurrence || building.return_per || building.returnPeriod || building.hazardProperties?.return_per || building.hazardProperties?.recurrence;
+                        if (recurrenceField) {
+                            // If it's already a number, use it directly
+                            if (typeof recurrenceField === 'number') {
+                                returnPeriod = recurrenceField;
+                            } else {
+                                // Otherwise extract number from string
+                                const match = String(recurrenceField).match(/\d+/);
+                                if (match) {
+                                    returnPeriod = parseInt(match[0]);
+                                }
                             }
                         }
                         
@@ -2084,27 +2105,37 @@ function initializeWorkflow() {
             
             if (building.VULNERABILITY !== undefined && building.VULNERABILITY !== null) {
                 vulnerabilityValue = building.VULNERABILITY;
-            } else if (building?.buildingProperties?.GKLAS && building?.intensity && window.buildings) {
-                // Fallback: calculate on-the-fly if stored value not accessible
-                const buildingClass = building.buildingProperties.GKLAS;
-                const buildingInfo = window.buildings.find(b => 
-                    b.classes && b.classes.includes(String(buildingClass))
-                );
+            } else if (building?.buildingProperties?.GKLAS || building?.buildingProperties?.buildingCl || building?.GKLAS || building?.buildingCl) {
+                // Check if we have both building class and intensity (with any field name)
+                const hasIntensity = building?.intensity || building?.intensity_ || building?.hazardProperties?.intensity || building?.hazardProperties?.intensity_;
                 
-                if (buildingInfo && buildingInfo.vulnerabilite) {
-                    const intensity = String(building.intensity).toLowerCase();
-                    let intensityKey = null;
+                if (hasIntensity && window.buildings) {
+                    // Fallback: calculate on-the-fly if stored value not accessible
+                    // Support multiple field names: GKLAS, buildingCl
+                    const buildingClass = building.buildingProperties?.GKLAS || building.buildingProperties?.buildingCl || building.GKLAS || building.buildingCl;
+                    const buildingInfo = window.buildings.find(b => 
+                        b.classes && b.classes.includes(String(buildingClass))
+                    );
                     
-                    if (intensity.includes('faible') || intensity.includes('low')) {
-                        intensityKey = 'faible';
-                    } else if (intensity.includes('moyenne') || intensity.includes('medium')) {
-                        intensityKey = 'moyenne';
-                    } else if (intensity.includes('forte') || intensity.includes('high')) {
-                        intensityKey = 'forte';
-                    }
-                    
-                    if (intensityKey && buildingInfo.vulnerabilite[intensityKey] !== undefined) {
-                        vulnerabilityValue = buildingInfo.vulnerabilite[intensityKey];
+                    if (buildingInfo && buildingInfo.vulnerabilite) {
+                        // Support multiple field names: intensity, intensity_
+                        const intensityValue = building.intensity || building.intensity_ || building.hazardProperties?.intensity || building.hazardProperties?.intensity_;
+                        if (intensityValue) {
+                            const intensity = String(intensityValue).toLowerCase();
+                            let intensityKey = null;
+                            
+                            if (intensity.includes('faible') || intensity.includes('low')) {
+                                intensityKey = 'faible';
+                            } else if (intensity.includes('moyenne') || intensity.includes('medium') || intensity.includes('mean')) {
+                                intensityKey = 'moyenne';
+                            } else if (intensity.includes('forte') || intensity.includes('high')) {
+                                intensityKey = 'forte';
+                            }
+                            
+                            if (intensityKey && buildingInfo.vulnerabilite[intensityKey] !== undefined) {
+                                vulnerabilityValue = buildingInfo.vulnerabilite[intensityKey];
+                            }
+                        }
                     }
                 }
             }
@@ -2161,9 +2192,11 @@ function initializeWorkflow() {
                 }
                 
                 // Map intensity level
+                // Support multiple field names: intensity, intensity_
+                const intensityValueGrid = building.intensity || building.intensity_ || building.hazardProperties?.intensity || building.hazardProperties?.intensity_;
                 let intensityLevel = null;
-                if (building.intensity) {
-                    const intensity = String(building.intensity).toLowerCase();
+                if (intensityValueGrid) {
+                    const intensity = String(intensityValueGrid).toLowerCase();
                     if (intensity.includes('faible') || intensity.includes('low')) {
                         intensityLevel = 'low';
                     } else if (intensity.includes('moyenne') || intensity.includes('medium') || intensity.includes('mean')) {
@@ -2264,19 +2297,20 @@ function initializeWorkflow() {
                 index: index + 1,
                 
                 // Building Identification
-                egid: building.buildingProperties?.EGID || 'N/A',
+                // Support multiple field names: EGID, egid
+                egid: building.buildingProperties?.EGID || building.buildingProperties?.egid || building.EGID || building.egid || 'N/A',
                 
                 // Location Information
-                canton: building.buildingProperties?.GDEKT || 'N/A',
-                communeName: building.buildingProperties?.GGDENAME || 'N/A',
+                canton: building.buildingProperties?.GDEKT || building.buildingProperties?.canton || building.canton || 'N/A',
+                communeName: building.buildingProperties?.GGDENAME || building.buildingProperties?.municipa_1 || building.municipa_1 || 'N/A',
                 
                 // Coordinates
                 coordinateE: building.buildingProperties?.GKODE || 'N/A',
                 coordinateN: building.buildingProperties?.GKODN || 'N/A',
                 
                 // Building Characteristics
-                buildingCategory: building.buildingProperties?.GKAT || 'N/A',
-                buildingClass: building.buildingProperties?.GKLAS || 'N/A',
+                buildingCategory: building.buildingProperties?.GKAT || building.buildingProperties?.buildingCa || building.buildingCa || 'N/A',
+                buildingClass: building.buildingProperties?.GKLAS || building.buildingProperties?.buildingCl || building.GKLAS || building.buildingCl || 'N/A',
                 buildingDescription: building.buildingProperties?.DESCRIPTION || 'N/A',
                 
                 // Construction Information
@@ -2296,9 +2330,10 @@ function initializeWorkflow() {
                 totalCost: building.buildingProperties?.TOTAL_COST || 'N/A',
                 
                 // Hazard Analysis
+                // Support multiple field names for intensity and recurrence
                 hazardType: building.hazardType || 'N/A',
-                hazardIntensity: building.intensity || 'None',
-                hazardRecurrence: building.recurrence || 'None',
+                hazardIntensity: building.intensity || building.intensity_ || building.hazardProperties?.intensity || building.hazardProperties?.intensity_ || 'None',
+                hazardRecurrence: building.recurrence || building.return_per || building.returnPeriod || building.hazardProperties?.return_per || building.hazardProperties?.recurrence || 'None',
                 temporalHazardProb: temporalHazardProbValue,
                 spatialHazardProb: spatialHazardProbValue,
                 vulnerability: vulnerabilityValue,
@@ -2782,7 +2817,7 @@ function initializeWorkflow() {
                     }
 
                     // Get hazard properties for return period identification - try multiple possible field names
-                    const returnPeriod = building.recurrence || building.hazardRecurrence || building.returnPeriod || building.return_period;
+                    const returnPeriod = building.recurrence || building.return_per || building.hazardRecurrence || building.returnPeriod || building.return_period || building.hazardProperties?.return_per || building.hazardProperties?.recurrence;
                     
                     // Get damage values - try multiple possible field names
                     const economeDamage = parseFloat(building.damage || building.DAMAGE) || 0;
@@ -5815,7 +5850,7 @@ function initializeDrawFunctionality() {
             window.drawnPolygon = layer;
 
             // Enable analysis button
-            const runAnalysisBtn = document.getElementById('run-analysis');
+            const runAnalysisBtn = document.getElementById('run-analysis-btn');
             if (runAnalysisBtn) {
                 runAnalysisBtn.disabled = false;
                 console.log('✅ Analysis button enabled');

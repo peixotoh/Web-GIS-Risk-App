@@ -250,8 +250,20 @@ function loadCustomHazardDataToMap(geojsonData, hazardType) {
         
         console.log('⏳ Creating Leaflet layer...');
         
-        // Create custom layer using existing styling patterns
-        const customLayer = L.geoJSON(transformedGeoJSON, {
+        // Filter out aucune_atteinte features before styling
+        const filteredGeoJSON = {
+            ...transformedGeoJSON,
+            features: transformedGeoJSON.features.filter(feature => {
+                const intensity = feature.properties?.classe_d_intensites || feature.properties?.intensity_ || feature.properties?.intensity || '';
+                const intensityLower = String(intensity).toLowerCase().trim();
+                return intensityLower !== 'aucune_atteinte' && intensityLower !== 'aucune atteinte';
+            })
+        };
+
+        console.log(`🔍 Filtered ${transformedGeoJSON.features.length - filteredGeoJSON.features.length} aucune_atteinte features`);
+
+        // Create custom layer using existing styling patterns with filtered data
+        const customLayer = L.geoJSON(filteredGeoJSON, {
             style: function(feature) {
                 try {
                     // Use classe_d_intensites for styling polygons
@@ -328,33 +340,35 @@ function loadCustomHazardDataToMap(geojsonData, hazardType) {
                 }
             }
         });
-        
-        // Filter out aucune_atteinte features before adding to map
-        const filteredGeoJSON = {
-            ...transformedGeoJSON,
-            features: transformedGeoJSON.features.filter(feature => {
-                const intensity = feature.properties?.classe_d_intensites || feature.properties?.intensity_ || feature.properties?.intensity || '';
-                const intensityLower = String(intensity).toLowerCase().trim();
-                return intensityLower !== 'aucune_atteinte' && intensityLower !== 'aucune atteinte';
-            })
-        };
 
-        console.log(`🔍 Filtered ${transformedGeoJSON.features.length - filteredGeoJSON.features.length} aucune_atteinte features`);
-
-        // Delegate to unified hazard adder so we use single canonical window.hazardLayer
+        // Add the styled layer directly to the map
         if (window.map) {
             try {
-                if (typeof window.addHazardToMap === 'function') {
-                    window.addHazardToMap(filteredGeoJSON, hazardType === 'debris-flow' ? 'debris_flow' : hazardType);
-                    console.log(`✅ Custom hazard data loaded with ${filteredGeoJSON.features.length} features (filtered out aucune_atteinte)`);
-                    alert('✅ Custom hazard data loaded successfully!');
-                    
-                    // Clear file inputs and labels so the user can upload again (overwrite)
-                    clearFileInputs();
-                } else {
-                    console.error('❌ addHazardToMap function not available');
-                    alert('⚠️ Failed to add custom hazard to map. Function not available.');
+                // Remove existing hazard layers first
+                if (window.hazardLayer && window.map.hasLayer(window.hazardLayer)) {
+                    window.map.removeLayer(window.hazardLayer);
                 }
+                
+                // Set the custom layer as the global hazard layer
+                window.hazardLayer = customLayer;
+                customLayer.addTo(window.map);
+                
+                // Add to layer control
+                if (window.ctlLayers && typeof window.removeOverlayByName === 'function') {
+                    window.removeOverlayByName('🪨 Hazard Layer');
+                    window.ctlLayers.addOverlay(window.hazardLayer, '🪨 Hazard Layer');
+                }
+                
+                // Fit map to bounds
+                if (customLayer.getBounds && customLayer.getBounds().isValid()) {
+                    window.map.fitBounds(customLayer.getBounds().pad(0.1));
+                }
+                
+                console.log(`✅ Custom hazard data loaded with ${filteredGeoJSON.features.length} features`);
+                alert('✅ Custom hazard data loaded successfully!');
+                
+                // Clear file inputs and labels so the user can upload again (overwrite)
+                clearFileInputs();
             } catch (error) {
                 console.error('❌ Error adding custom hazard to map:', error);
                 alert('⚠️ Failed to add custom hazard to map. See console.');

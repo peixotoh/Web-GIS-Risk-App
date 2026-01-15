@@ -446,8 +446,8 @@
                 // Enhanced field mapping with more variations and defaults
                 // Debug: Log building properties to see what's available
                 if (index < 3) {
-                    console.log(`🔍 Building ${index + 1} props keys:`, Object.keys(props));
-                    console.log(`🔍 Building ${index + 1} props values:`, props);
+                    // console.log(`🔍 Building ${index + 1} props keys:`, Object.keys(props));
+                    // console.log(`🔍 Building ${index + 1} props values:`, props);
                 }
                 
                 const egid = props.egid || props.EGID || props.id || `geoadmin_${index}`;
@@ -712,8 +712,8 @@
      */
     function createGeoAdminBuildingPopup(properties) {
         // Debug: Log all available properties to see what GeoAdmin actually returns
-        console.log('🔍 GeoAdmin building properties available:', Object.keys(properties));
-        console.log('🔍 GeoAdmin building properties values:', properties);
+        // console.log('🔍 GeoAdmin building properties available:', Object.keys(properties));
+        // console.log('🔍 GeoAdmin building properties values:', properties);
         
         // All requested fields with proper labels and multiple field name variations
         const requestedFields = {

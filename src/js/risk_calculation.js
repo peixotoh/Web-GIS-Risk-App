@@ -51,73 +51,73 @@ function constructionYear(yearConstruction, periodConstructionCode){
 
 // convert construction period code into years
 function constructionPeriodCodeToYears(periodConstructionCode){
-    console.log(`🔍 constructionPeriodCodeToYears called with: ${periodConstructionCode} (type: ${typeof periodConstructionCode})`);
+    // console.log(`🔍 constructionPeriodCodeToYears called with: ${periodConstructionCode} (type: ${typeof periodConstructionCode})`);
     
     // Check if we received a valid number
     if (isNaN(periodConstructionCode)) {
-        console.log(`❌ Invalid period code (not a number): ${periodConstructionCode}`);
+        // console.log(`❌ Invalid period code (not a number): ${periodConstructionCode}`);
         return 1950;
     }
     
     switch(periodConstructionCode){
         case 8011:
-            console.log(`✅ Matched case 8011 → 1900`);
+            // console.log(`✅ Matched case 8011 → 1900`);
             return 1900;
         case 8012:
-            console.log(`✅ Matched case 8012 → 1932`);
+            // console.log(`✅ Matched case 8012 → 1932`);
             return 1932;
-        case 8013:    
-            console.log(`✅ Matched case 8013 → 1953`);
+        case 8013:
+            // console.log(`✅ Matched case 8013 → 1953`);
             return 1953;
         case 8014:
-            console.log(`✅ Matched case 8014 → 1966`);
+            // console.log(`✅ Matched case 8014 → 1966`);
             return 1966;
-        case 8015:    
-            console.log(`✅ Matched case 8015 → 1976`);
+        case 8015:
+            // console.log(`✅ Matched case 8015 → 1976`);
             return 1976;
-        case 8016:    
-            console.log(`✅ Matched case 8016 → 1983`);
+        case 8016:
+            // console.log(`✅ Matched case 8016 → 1983`);
             return 1983;
-        case 8017:    
-            console.log(`✅ Matched case 8017 → 1988`);
+        case 8017:
+            // console.log(`✅ Matched case 8017 → 1988`);
             return 1988;
-        case 8018:    
-            console.log(`✅ Matched case 8018 → 1993`);
-            return 1993;    
-        case 8019:    
-            console.log(`✅ Matched case 8019 → 1998`);
-            return 1998;    
-        case 8020:    
-            console.log(`✅ Matched case 8020 → 2003`);
-            return 2003;    
-        case 8021:    
-            console.log(`✅ Matched case 8021 → 2008`);
-            return 2008;    
-        case 8022:    
-            console.log(`✅ Matched case 8022 → 2013`);
-            return 2013;    
+        case 8018:
+            // console.log(`✅ Matched case 8018 → 1993`);
+            return 1993;
+        case 8019:
+            // console.log(`✅ Matched case 8019 → 1998`);
+            return 1998;
+        case 8020:
+            // console.log(`✅ Matched case 8020 → 2003`);
+            return 2003;
+        case 8021:
+            // console.log(`✅ Matched case 8021 → 2008`);
+            return 2008;
+        case 8022:
+            // console.log(`✅ Matched case 8022 → 2013`);
+            return 2013;
         case 8023:
-            console.log(`✅ Matched case 8023 → 2015`);
-            return 2015;    
+            // console.log(`✅ Matched case 8023 → 2015`);
+            return 2015;
         default:
-            console.log(`❌ No match found for period code ${periodConstructionCode}, using default 1950`);
-            console.log(`📋 Available codes: 8011-8023, received: ${periodConstructionCode}`);
+            // console.log(`❌ No match found for period code ${periodConstructionCode}, using default 1950`);
+            // console.log(`📋 Available codes: 8011-8023, received: ${periodConstructionCode}`);
             return 1950;
     }
 }
 
 // CAT MODEL - Method 3 Monte Carlo Simulations
 function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, intensity = null, buildingId = null) {
-    console.log(`🎲 ==================== CAT MODEL METHOD 3 CALLED ====================`);
-    console.log(`🎯 Processing building with GKLAS: ${gklas} (${typeof gklas}) - Intensity: ${intensity}`);
-    console.log(`🎯 Hazard type: ${hazType}`);
-    console.log(`🎯 Build cost: ${buildCost}`);
-    console.log(`🎯 Spatial probability (original): ${spatialProb}`);
-    console.log(`🎯 Number of simulations: ${numSimulations}`);
+    // console.log(`🎲 ==================== CAT MODEL METHOD 3 CALLED ====================`);
+    // console.log(`🎯 Processing building with GKLAS: ${gklas} (${typeof gklas}) - Intensity: ${intensity}`);
+    // console.log(`🎯 Hazard type: ${hazType}`);
+    // console.log(`🎯 Build cost: ${buildCost}`);
+    // console.log(`🎯 Spatial probability (original): ${spatialProb}`);
+    // console.log(`🎯 Number of simulations: ${numSimulations}`);
     
     // CRITICAL: Check if this is a multi-building vs single-building scenario
     const currentMethod3ResultsLength = window.method3Results ? window.method3Results.length : 0;
-    console.log(`🔍 Current Method 3 results length: ${currentMethod3ResultsLength} (indicates number of buildings processed so far)`);
+    // console.log(`🔍 Current Method 3 results length: ${currentMethod3ResultsLength} (indicates number of buildings processed so far)`);
     
     // Fix spatial probability if undefined
     if (spatialProb === undefined || spatialProb === null || isNaN(spatialProb)) {
@@ -125,9 +125,9 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
         console.warn('⚠️ Spatial probability was undefined, using rockfall fallback value:', spatialProb);
     }
     
-    console.log('Spatial probability (final):', spatialProb);
-    console.log('Number of simulations:', numSimulations);
-    console.log('Building class (GKLAS):', gklas);
+    // console.log('Spatial probability (final):', spatialProb);
+    // console.log('Number of simulations:', numSimulations);
+    // console.log('Building class (GKLAS):', gklas);
     
     // Initialize global results array if not exists (accumulates all building results)
     if (!window.method3Results) {
@@ -202,10 +202,10 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     // Access vulnerability parameters from rockVulnerabilityChanged (user-modified values)
     if (typeof rockVulnerabilityChanged !== 'undefined' && rockVulnerabilityChanged[classKey]) {
         vulnParams = rockVulnerabilityChanged[classKey];
-        console.log(`✅ Method 3 - Using ${classKey} parameters`);
+        // console.log(`✅ Method 3 - Using ${classKey} parameters`);
     } else if (typeof rockVulnerabilityDefaults !== 'undefined' && rockVulnerabilityDefaults[classKey]) {
         vulnParams = rockVulnerabilityDefaults[classKey];
-        console.log(`✅ Method 3 - Using ${classKey} defaults`);
+        // console.log(`✅ Method 3 - Using ${classKey} defaults`);
     } else {
         console.warn(`⚠️ Method 3 - No vulnerability parameters found for ${classKey}, using hardcoded defaults`);
         vulnParams = {
@@ -217,7 +217,7 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     
     // --- ROCKFALL Monte Carlo Simulations
     if (hazType === 'rock_fall' || hazType === 'rockfall') {
-        console.log('🎲 Starting method 3  Monte Carlo simulations...');
+        // console.log('🎲 Starting method 3  Monte Carlo simulations...');
         
         for (let i = 0; i < numSimulations; i++) {
             const logDetail = false; // i < 5; // Only log details for first 5 simulations - COMMENTED OUT FOR CLEANER OUTPUT
@@ -257,6 +257,7 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             
             // Calculate damage
             const dam_3 = frq * vuln_3 * buildCost * spatialProb;
+            // const dam_3 = vuln_3 * buildCost * spatialProb;
             // if (logDetail) {
             //     console.log(`Damage calculation: ${frq} * ${vuln_3} * ${buildCost} * ${spatialProb} = ${dam_3}`);
             //     console.log(`Is damage valid? ${!isNaN(dam_3)}`);
@@ -327,13 +328,13 @@ function method3CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
 
 // CAT MODEL - Method 4 Monte Carlo Simulations
 function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, returnPeriod, hazardIntensity, buildingId = null) {
-    console.log('🎲 Starting Method 4 - Monte Carlo Simulations ...');
+    // console.log('🎲 Starting Method 4 - Monte Carlo Simulations ...');
     // console.log('Hazard type:', hazType);
     // console.log('Build cost:', buildCost);
     // console.log('Spatial probability (original):', spatialProb);
     // console.log('Return period:', returnPeriod);
-    console.log('Hazard intensity:', hazardIntensity);
-    console.log('Number of simulations:', numSimulations);
+    // console.log('Hazard intensity:', hazardIntensity);
+    // console.log('Number of simulations:', numSimulations);
     
     // Fix spatial probability if undefined
     if (spatialProb === undefined || spatialProb === null || isNaN(spatialProb)) {
@@ -341,9 +342,9 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
         console.warn('⚠️ Spatial probability was undefined, using rockfall fallback value:', spatialProb);
     }
     
-    console.log('Spatial probability (final):', spatialProb);
-    console.log('Number of simulations:', numSimulations);
-    console.log('Building class (GKLAS):', gklas);
+    // console.log('Spatial probability (final):', spatialProb);
+    // console.log('Number of simulations:', numSimulations);
+    // console.log('Building class (GKLAS):', gklas);
     
     // Initialize global results array if not exists (accumulates all building results)
     if (!window.method4Results) {
@@ -352,15 +353,15 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     
     // Get vulnerability class from building data based on GKLAS
     let vulnerabilityClass = 1; // default
-    console.log('🔍 Method 4 - Building class lookup - GKLAS received:', gklas, typeof gklas);
+    // console.log('🔍 Method 4 - Building class lookup - GKLAS received:', gklas, typeof gklas);
     
     if (typeof window.buildings !== 'undefined' && gklas) {
         const buildingInfo = window.buildings.find(b => b.classes && b.classes.includes(gklas.toString()));
-        console.log('🔍 Method 4 - Found building info:', buildingInfo ? `${buildingInfo.description} (classes: [${buildingInfo.classes.join(', ')}])` : 'null');
+        // console.log('🔍 Method 4 - Found building info:', buildingInfo ? `${buildingInfo.description} (classes: [${buildingInfo.classes.join(', ')}])` : 'null');
         
         if (buildingInfo && buildingInfo.vulnerability_class) {
             vulnerabilityClass = buildingInfo.vulnerability_class;
-            console.log(`✅ Method 4 - Matched GKLAS ${gklas} → Building: "${buildingInfo.description}" → Vulnerability class: ${vulnerabilityClass}`);
+            // console.log(`✅ Method 4 - Matched GKLAS ${gklas} → Building: "${buildingInfo.description}" → Vulnerability class: ${vulnerabilityClass}`);
         } else {
             console.warn(`⚠️ Method 4 - No building match found for GKLAS: ${gklas} (using default class 1)`);
         }
@@ -368,7 +369,7 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
         console.warn('⚠️ Method 4 - window.buildings not available or GKLAS is null');
     }
     
-    console.log('Method 4 - Vulnerability class:', vulnerabilityClass);
+    // console.log('Method 4 - Vulnerability class:', vulnerabilityClass);
     
     // Get vulnerability parameters from rockVulnerabilityChanged (user-modified values)
     const classKey = `class${vulnerabilityClass}`;
@@ -376,16 +377,16 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
     
     if (typeof rockVulnerabilityChanged !== 'undefined' && rockVulnerabilityChanged[classKey]) {
         vulnParams = rockVulnerabilityChanged[classKey];
-        console.log(`✅ Method 4 - Using rockVulnerabilityChanged for ${classKey}`);
-        console.log(`📊 Method 4 - ${classKey} Mean params:`, vulnParams.mean);
-        console.log(`📊 Method 4 - ${classKey} Min params:`, vulnParams.min);
-        console.log(`📊 Method 4 - ${classKey} Max params:`, vulnParams.max);
+        // console.log(`✅ Method 4 - Using rockVulnerabilityChanged for ${classKey}`);
+        // console.log(`📊 Method 4 - ${classKey} Mean params:`, vulnParams.mean);
+        // console.log(`📊 Method 4 - ${classKey} Min params:`, vulnParams.min);
+        // console.log(`📊 Method 4 - ${classKey} Max params:`, vulnParams.max);
     } else if (typeof rockVulnerabilityDefaults !== 'undefined' && rockVulnerabilityDefaults[classKey]) {
         vulnParams = rockVulnerabilityDefaults[classKey];
-        console.log(`✅ Method 4 - Using rockVulnerabilityDefaults for ${classKey} (changed values not available)`);
-        console.log(`📊 Method 4 - ${classKey} Mean params:`, vulnParams.mean);
-        console.log(`📊 Method 4 - ${classKey} Min params:`, vulnParams.min);
-        console.log(`📊 Method 4 - ${classKey} Max params:`, vulnParams.max);
+        // console.log(`✅ Method 4 - Using rockVulnerabilityDefaults for ${classKey} (changed values not available)`);
+        // console.log(`📊 Method 4 - ${classKey} Mean params:`, vulnParams.mean);
+        // console.log(`📊 Method 4 - ${classKey} Min params:`, vulnParams.min);
+        // console.log(`📊 Method 4 - ${classKey} Max params:`, vulnParams.max);
     } else {
         console.warn(`⚠️ Method 4 - No vulnerability parameters found for ${classKey}, using hardcoded defaults for class1`);
         vulnParams = {
@@ -537,11 +538,17 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
         // Calculate statistics for THIS BUILDING ONLY BEFORE sorting
         // Get only the results for this building (last numSimulations results BEFORE sorting)
         const thisBuildingResults = window.method4Results.slice(-numSimulations);
+        
+        // IMPORTANT: Make a copy of this building's results BEFORE sorting the global array
+        // This preserves the original unsorted data for proper exceedance curve calculation
+        const thisBuildingResultsCopy = thisBuildingResults.map(r => ({...r}));
+        
         const damages = thisBuildingResults.map(r => r.damage);
         const totalDamage = damages.reduce((sum, d) => sum + d, 0);
         const meanDamage = damages.length > 0 ? totalDamage / damages.length : 0;
         
         // Sort results by damage (ALL buildings) - AFTER calculating this building's statistics
+        // NOTE: This sorting is for global window.method4Results array
         window.method4Results.sort((a, b) => a.damage - b.damage);
         // Use reduce to avoid stack overflow with large arrays
         const minDamage = damages.length > 0 ? damages.reduce((min, val) => Math.min(min, val), Infinity) : 0;
@@ -580,33 +587,33 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             }
         });
         
-        console.log('✅ Method 4 Results Summary (THIS BUILDING):');
-        console.log(`  - Simulations requested for this building: ${numSimulations}`);
-        console.log(`  - Points generated this building: ${numSimulations}`);
-        console.log(`  - Total accumulated points in global array: ${window.method4Results.length}`);
-        console.log(`  - Statistics calculated from THIS BUILDING: ${damages.length} points`);
-        console.log(`  - Current building hazard intensity: ${hazardIntensity}`);
-        console.log(`  - Mean damage: ${meanDamage.toFixed(2)} CHF`);
-        console.log(`  - Min damage: ${minDamage.toFixed(2)} CHF`);
-        console.log(`  - Max damage: ${maxDamage.toFixed(2)} CHF`);
-        console.log(`  - Std deviation: ${stdDev.toFixed(2)} CHF`);
+        // console.log('✅ Method 4 Results Summary (THIS BUILDING):');
+        // console.log(`  - Simulations requested for this building: ${numSimulations}`);
+        // console.log(`  - Points generated this building: ${numSimulations}`);
+        // console.log(`  - Total accumulated points in global array: ${window.method4Results.length}`);
+        // console.log(`  - Statistics calculated from THIS BUILDING: ${damages.length} points`);
+        // console.log(`  - Current building hazard intensity: ${hazardIntensity}`);
+        // console.log(`  - Mean damage: ${meanDamage.toFixed(2)} CHF`);
+        // console.log(`  - Min damage: ${minDamage.toFixed(2)} CHF`);
+        // console.log(`  - Max damage: ${maxDamage.toFixed(2)} CHF`);
+        // console.log(`  - Std deviation: ${stdDev.toFixed(2)} CHF`);
         
-        console.log('🔍 Method 4 Intensity Analysis:');
-        Object.keys(intensityAnalysis).forEach(level => {
-            const analysis = intensityAnalysis[level];
-            const maxDamage = Math.max(...analysis.damages);
-            const minDamage = Math.min(...analysis.damages);
-            console.log(`  ${level}:`);
-            console.log(`    - Total points: ${analysis.totalPoints}`);
-            console.log(`    - Non-zero intensity: ${analysis.nonZeroIntensity} points`);
-            console.log(`    - Zero intensity: ${analysis.zeroIntensity} points`);
-            console.log(`    - Expected non-zero for ${level}: ${getExpectedNonZeroPoints(level, numSimulations)}`);
-            if (analysis.nonZeroIntensity > 0) {
-                console.log(`    - Intensity range: ${analysis.minIntensity.toFixed(1)} - ${analysis.maxIntensity.toFixed(1)} kJ`);
-                console.log(`    - Expected intensity range: ${getExpectedIntensityRange(level)}`);
-            }
-            console.log(`    - Damage range: ${minDamage.toFixed(2)} - ${maxDamage.toFixed(2)} CHF`);
-        });
+        // console.log('🔍 Method 4 Intensity Analysis:');
+        // Object.keys(intensityAnalysis).forEach(level => {
+        //     const analysis = intensityAnalysis[level];
+        //     const maxDamage = Math.max(...analysis.damages);
+        //     const minDamage = Math.min(...analysis.damages);
+        //     console.log(`  ${level}:`);
+        //     console.log(`    - Total points: ${analysis.totalPoints}`);
+        //     console.log(`    - Non-zero intensity: ${analysis.nonZeroIntensity} points`);
+        //     console.log(`    - Zero intensity: ${analysis.zeroIntensity} points`);
+        //     console.log(`    - Expected non-zero for ${level}: ${getExpectedNonZeroPoints(level, numSimulations)}`);
+        //     if (analysis.nonZeroIntensity > 0) {
+        //         console.log(`    - Intensity range: ${analysis.minIntensity.toFixed(1)} - ${analysis.maxIntensity.toFixed(1)} kJ`);
+        //         console.log(`    - Expected intensity range: ${getExpectedIntensityRange(level)}`);
+        //     }
+        //     console.log(`    - Damage range: ${minDamage.toFixed(2)} - ${maxDamage.toFixed(2)} CHF`);
+        // });
         
         // Helper functions for expected values
         function getExpectedNonZeroPoints(level, totalSims) {
@@ -640,7 +647,7 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
             minDamage: minDamage,
             maxDamage: maxDamage,
             stdDev: stdDev,
-            results: thisBuildingResults // Return only this building's results
+            results: thisBuildingResultsCopy // Return the UNSORTED copy for this building
         };
     }
     
@@ -651,10 +658,10 @@ function method4CatModel(hazType, buildCost, spatialProb, numSimulations, gklas,
 
 // CAT MODEL - Method 5 & 6 Monte Carlo Simulations
 function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gklas, returnPeriod, hazardLevel = null, buildingId = null) {
-    console.log('🎲 Starting Method 5 & 6 - Monte Carlo Simulations (Return Period Based)...');
-    console.log('Return period:', returnPeriod);
-    console.log('Hazard level:', hazardLevel);
-    console.log('Number of simulations:', numSimulations);
+    // console.log('🎲 Starting Method 5 & 6 - Monte Carlo Simulations (Return Period Based)...');
+    // console.log('Return period:', returnPeriod);
+    // console.log('Hazard level:', hazardLevel);
+    // console.log('Number of simulations:', numSimulations);
     
     // Fix spatial probability if undefined
     if (spatialProb === undefined || spatialProb === null || isNaN(spatialProb)) {
@@ -662,9 +669,9 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
         console.warn('⚠️ Spatial probability was undefined, using rockfall fallback value:', spatialProb);
     }
     
-    console.log('Spatial probability (final):', spatialProb);
-    console.log('Number of simulations:', numSimulations);
-    console.log('Building class (GKLAS):', gklas);
+    // console.log('Spatial probability (final):', spatialProb);
+    // console.log('Number of simulations:', numSimulations);
+    // console.log('Building class (GKLAS):', gklas);
     
     // Initialize global results arrays if not exists (accumulates all building results)
     if (!window.method5Results) {
@@ -676,15 +683,15 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
     
     // Get vulnerability class from building data based on GKLAS
     let vulnerabilityClass = 0.5; // default
-    console.log('🔍 Method 5 & 6 - Building class lookup - GKLAS received:', gklas, typeof gklas);
+    // console.log('🔍 Method 5 & 6 - Building class lookup - GKLAS received:', gklas, typeof gklas);
     
     if (typeof window.buildings !== 'undefined' && gklas) {
         const buildingInfo = window.buildings.find(b => b.classes && b.classes.includes(gklas.toString()));
-        console.log('🔍 Method 5 & 6 - Found building info:', buildingInfo ? `${buildingInfo.description} (classes: [${buildingInfo.classes.join(', ')}])` : 'null');
+        // console.log('🔍 Method 5 & 6 - Found building info:', buildingInfo ? `${buildingInfo.description} (classes: [${buildingInfo.classes.join(', ')}])` : 'null');
         
         if (buildingInfo && buildingInfo.vulnerability_class) {
             vulnerabilityClass = buildingInfo.vulnerability_class;
-            console.log(`✅ Method 5 & 6 - Matched GKLAS ${gklas} → Building: "${buildingInfo.description}" → Vulnerability class: ${vulnerabilityClass}`);
+            // console.log(`✅ Method 5 & 6 - Matched GKLAS ${gklas} → Building: "${buildingInfo.description}" → Vulnerability class: ${vulnerabilityClass}`);
         } else {
             console.warn(`⚠️ Method 5 & 6 - No building match found for GKLAS: ${gklas} (using default class 1)`);
         }
@@ -692,7 +699,7 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
         console.warn('⚠️ Method 5 & 6 - window.buildings not available or GKLAS is null');
     }
     
-    console.log('Method 5 & 6 - Vulnerability class:', vulnerabilityClass);
+    // console.log('Method 5 & 6 - Vulnerability class:', vulnerabilityClass);
     
     // Get vulnerability parameters from rockVulnerabilityChanged (user-modified values)
     const classKey = `class${vulnerabilityClass}`;
@@ -700,16 +707,16 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
     
     if (typeof rockVulnerabilityChanged !== 'undefined' && rockVulnerabilityChanged[classKey]) {
         vulnParams = rockVulnerabilityChanged[classKey];
-        console.log(`✅ Method 5 & 6 - Using rockVulnerabilityChanged for ${classKey}`);
-        console.log(`📊 Method 5 & 6 - ${classKey} Mean params:`, vulnParams.mean);
-        console.log(`📊 Method 5 & 6 - ${classKey} Min params:`, vulnParams.min);
-        console.log(`📊 Method 5 & 6 - ${classKey} Max params:`, vulnParams.max);
+        // console.log(`✅ Method 5 & 6 - Using rockVulnerabilityChanged for ${classKey}`);
+        // console.log(`📊 Method 5 & 6 - ${classKey} Mean params:`, vulnParams.mean);
+        // console.log(`📊 Method 5 & 6 - ${classKey} Min params:`, vulnParams.min);
+        // console.log(`📊 Method 5 & 6 - ${classKey} Max params:`, vulnParams.max);
     } else if (typeof rockVulnerabilityDefaults !== 'undefined' && rockVulnerabilityDefaults[classKey]) {
         vulnParams = rockVulnerabilityDefaults[classKey];
-        console.log(`✅ Method 5 & 6 - Using rockVulnerabilityDefaults for ${classKey} (changed values not available)`);
-        console.log(`📊 Method 5 & 6 - ${classKey} Mean params:`, vulnParams.mean);
-        console.log(`📊 Method 5 & 6 - ${classKey} Min params:`, vulnParams.min);
-        console.log(`📊 Method 5 & 6 - ${classKey} Max params:`, vulnParams.max);
+        // console.log(`✅ Method 5 & 6 - Using rockVulnerabilityDefaults for ${classKey} (changed values not available)`);
+        // console.log(`📊 Method 5 & 6 - ${classKey} Mean params:`, vulnParams.mean);
+        // console.log(`📊 Method 5 & 6 - ${classKey} Min params:`, vulnParams.min);
+        // console.log(`📊 Method 5 & 6 - ${classKey} Max params:`, vulnParams.max);
     } else {
         console.warn(`⚠️ Method 5 & 6 - No vulnerability parameters found for ${classKey}, using hardcoded defaults for class1`);
         vulnParams = {
@@ -721,12 +728,12 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
     
     // --- ROCKFALL Monte Carlo Simulations 
     if (hazType === 'rock_fall' || hazType === 'rockfall') {
-        console.log('🎲 Starting Method 5 & 6 Monte Carlo simulations for rockfall...');
+        // console.log('🎲 Starting Method 5 & 6 Monte Carlo simulations for rockfall...');
         
         // Check if we should simulate based on hazard level
         // For Method 5, skip simulation if hazard level indicates no hazard exposure
         if (hazardLevel && (hazardLevel === 'aucune_atteinte' || hazardLevel === 'aucune atteinte' || hazardLevel === 'no_hazard')) {
-            console.log(`⚠️ Method 5 & 6 - Skipping simulations for return period ${returnPeriod} due to no hazard exposure (${hazardLevel})`);
+            // console.log(`⚠️ Method 5 & 6 - Skipping simulations for return period ${returnPeriod} due to no hazard exposure (${hazardLevel})`);
             
             // Return empty results structure
             return {
@@ -946,6 +953,11 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
         // Calculate Method 5 statistics for THIS BUILDING ONLY BEFORE sorting
         // Get only the results for this building (last numSimulations results BEFORE sorting)
         const thisBuildingResults5 = window.method5Results.slice(-numSimulations);
+        
+        // IMPORTANT: Make a copy of this building's results BEFORE sorting the global array
+        // This preserves the original unsorted data for proper exceedance curve calculation
+        const thisBuildingResults5Copy = thisBuildingResults5.map(r => ({...r}));
+        
         const damages5 = thisBuildingResults5.map(r => r.damage);
         const totalDamage5 = damages5.reduce((sum, d) => sum + d, 0);
         const meanDamage5 = damages5.length > 0 ? totalDamage5 / damages5.length : 0;
@@ -971,6 +983,11 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
             // Calculate Method 6 statistics for THIS BUILDING ONLY
             // Get only the results for this building (last numSimulations results)
             const thisBuildingResults6 = window.method6Results.slice(-numSimulations);
+            
+            // IMPORTANT: Make a copy of this building's results BEFORE sorting the global array
+            // This preserves the original unsorted data for proper exceedance curve calculation
+            const thisBuildingResults6Copy = thisBuildingResults6.map(r => ({...r}));
+            
             const damages6 = thisBuildingResults6.map(r => r.damage);
             const totalDamage6 = damages6.reduce((sum, d) => sum + d, 0);
             const meanDamage6 = damages6.length > 0 ? totalDamage6 / damages6.length : 0;
@@ -985,7 +1002,7 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 minDamage: minDamage6,
                 maxDamage: maxDamage6,
                 stdDev: stdDev6,
-                results: thisBuildingResults6
+                results: thisBuildingResults6Copy // Return the UNSORTED copy for this building
             };
             
             console.log('✅ Method 6 Results Summary (THIS BUILDING):');
@@ -1014,7 +1031,7 @@ function method5And6CatModel(hazType, buildCost, spatialProb, numSimulations, gk
                 minDamage: minDamage5,
                 maxDamage: maxDamage5,
                 stdDev: stdDev5,
-                results: thisBuildingResults5 // Return only this building's results
+                results: thisBuildingResults5Copy // Return the UNSORTED copy for this building
             },
             method6: method6Stats
         };

@@ -3750,6 +3750,59 @@ function initializeWorkflow() {
                 // Use reduce to avoid stack overflow with large arrays
                 const maxDamage = allDamages.length > 0 ? allDamages.reduce((max, val) => Math.max(max, val), 0) : 1000;
                 
+                // Add vertical lines for Method 1 and Method 2 total damages as traces (for legend)
+                if (window.latestExtractionResults && window.latestExtractionResults.buildingsAnalyzed) {
+                    const buildings = window.latestExtractionResults.buildingsAnalyzed;
+                    
+                    // Method 1: EconoMe total
+                    let economeTotalDamage = 0;
+                    buildings.forEach(building => {
+                        const damage = building.DAMAGE;
+                        if (damage !== 'N/A' && damage !== null && damage !== undefined && !isNaN(damage) && damage > 0) {
+                            economeTotalDamage += parseFloat(damage);
+                        }
+                    });
+                    
+                    if (economeTotalDamage > 0) {
+                        traces.push({
+                            x: [economeTotalDamage, economeTotalDamage],
+                            y: [0, 1],
+                            name: 'Method 1',
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: {
+                                color: '#2ca02c',
+                                width: 2,
+                                dash: 'dash'
+                            }
+                        });
+                    }
+                    
+                    // Method 2: Literature total
+                    let literatureTotalDamage = 0;
+                    buildings.forEach(building => {
+                        const damage = building.DAMAGE_LITERATURE;
+                        if (damage !== 'N/A' && damage !== null && damage !== undefined && !isNaN(damage) && damage > 0) {
+                            literatureTotalDamage += parseFloat(damage);
+                        }
+                    });
+                    
+                    if (literatureTotalDamage > 0) {
+                        traces.push({
+                            x: [literatureTotalDamage, literatureTotalDamage],
+                            y: [0, 1],
+                            name: 'Method 2',
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: {
+                                color: '#1f77b4',
+                                width: 2,
+                                dash: 'dash'
+                            }
+                        });
+                    }
+                }
+                
                 const layout = {
                     title: `CAT Model Methods - Damage Exceedance Probability`,
                     xaxis: {

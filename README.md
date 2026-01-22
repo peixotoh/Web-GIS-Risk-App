@@ -1,6 +1,6 @@
 # WebGIS Risk Application
 
-A web-based Geographic Information System for natural hazards risk assessment in Switzerland. This application enables researchers, urban planners, and engineers to perform comprehensive risk analysis combining hazard data, building information, and vulnerability modeling.
+A web-based Geographic Information System for natural hazards risk assessment in Switzerland. Built entirely with open-source technologies and leveraging free open data from Swiss official platforms through their public APIs (GeoAdmin, Swiss Federal Statistical Office), this application demonstrates how accessible tools can be combined to create powerful risk analysis solutions.
 
 ![License](https://img.shields.io/badge/license-Academic-blue)
 ![Version](https://img.shields.io/badge/version-2.0-green)
@@ -10,8 +10,9 @@ A web-based Geographic Information System for natural hazards risk assessment in
 
 This application was developed as part of a Master's thesis project at the University of Lausanne (UNIL). It provides a complete workflow for:
 
-- **Multi-hazard analysis**: Rockfall, debris flow, and flooding risk assessment
+- **Multi-hazard analysis**: Rockfall
 - **Building vulnerability modeling**: Using triangular distribution curves based on Swiss building classifications
+- **Deterministic assessment**: Method 1 (EconoMe) and Method 2 (Literature-based vulnerability functions)
 - **Monte Carlo simulations**: CAT Model methods (3-6) for probabilistic damage estimation
 - **Interactive visualization**: Real-time mapping with Swiss administrative boundaries and hazard layers
 
@@ -47,8 +48,7 @@ This application was developed as part of a Master's thesis project at the Unive
 - **Turf.js 6.5** - Spatial analysis operations
 - **Plotly.js** - Scientific visualization
 - **AG Grid** - Data tables
-- **Bootstrap 4.6** - UI components
-- **jQuery 3.6** - DOM manipulation
+- **Bootstrap 4.6** - UI components (with jQuery dependency)
 
 ### Data Sources
 - **GeoAdmin API** - Swiss Federal Office of Topography
@@ -88,32 +88,13 @@ webgisrisk-github/
 
 ## 🚦 Getting Started
 
-### Prerequisites
-- Modern web browser (Chrome, Firefox, Edge recommended)
-- Web server for local development (e.g., XAMPP, Live Server)
-- Internet connection for external APIs
+### Live Application
 
-### Installation
+The application is available online and ready to use:
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/webgisrisk-github.git
-   cd webgisrisk-github
-   ```
+🌐 **[https://peixotoh.github.io/Web-GIS-Risk-App/](https://peixotoh.github.io/Web-GIS-Risk-App/)**
 
-2. **Start a local server**
-   ```bash
-   # Using Python
-   python -m http.server 8000
-   
-   # Or using Node.js
-   npx serve
-   ```
-
-3. **Open in browser**
-   ```
-   http://localhost:8000/index.html
-   ```
+No installation required - just open the link in a modern web browser (Chrome, Firefox, Edge recommended).
 
 ### Quick Start Guide
 
@@ -143,24 +124,6 @@ The application supports GeoJSON files for custom hazard and building data:
 - **Hazard files**: Must include `intensity` property (faible/moyenne/forte)
 - **Building files**: Should include building cost and classification attributes
 
-## 📚 Documentation
-
-Detailed documentation is available in the `/docs` folder:
-
-- [JavaScript Documentation](docs/JavaScript_Documentation.html) - Complete API reference
-- [CAT Model Methods](docs/CAT_Model_Methods_Documentation.html) - Statistical methodology
-- [UI/UX Design](docs/UX_UI_Design_Proposal.md) - Interface guidelines
-
-## 🤝 Contributing
-
-This is an academic project. For questions or collaboration:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit changes (`git commit -am 'Add new feature'`)
-4. Push to branch (`git push origin feature/improvement`)
-5. Open a Pull Request
-
 ## 📝 License
 
 This project is developed for academic purposes as part of a Master's thesis at the University of Lausanne (UNIL), Faculty of Geosciences and Environment.
@@ -172,9 +135,8 @@ This project is developed for academic purposes as part of a Master's thesis at 
 - **Swiss Federal Statistical Office (BFS)** - Building register data
 - **Open Source Community** - Leaflet, Turf.js, Plotly.js, and other libraries
 
-## 📧 Contact
-
-For questions about this project, please contact through the university channels or open an issue on GitHub.
+## 🙋‍♂️ Contact
+Developed by Hélder Peixoto - helderasp@hotmail.com Feel free to reach out with feedback or contributions!
 
 ---
 

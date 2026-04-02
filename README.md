@@ -3,7 +3,7 @@
 A web-based Geographic Information System for natural hazards risk assessment in Switzerland. Built entirely with open-source technologies and leveraging free open data from Swiss official platforms through their public APIs (GeoAdmin, Swiss Federal Statistical Office), this application demonstrates how accessible tools can be combined to create powerful risk analysis solutions.
 
 ![License](https://img.shields.io/badge/license-Academic-blue)
-![Version](https://img.shields.io/badge/version-2.0-green)
+![Version](https://img.shields.io/badge/version-1.0-green)
 ![Leaflet](https://img.shields.io/badge/Leaflet-1.9.4-brightgreen)
 
 ## 🎯 Overview

@@ -5138,7 +5138,7 @@ function initializeWorkflow() {
         console.log('Populating cantons...');
         
         // Manual canton selection - only the 3 cantons you specified
-        const cantons = ['Graubünden','Ticino','Valais', 'Vaud', 'Genève'].sort(); // Sort alphabetically 
+        const cantons = ['Ticino','Valais'].sort(); // Sort alphabetically 
     
         const cantonSelect = document.getElementById('canton-select');
         

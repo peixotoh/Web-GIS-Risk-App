@@ -37,7 +37,6 @@ function initializeMap() {
     window.lyrOTM = L.tileLayer.provider('OpenTopoMap');
     window.lyrOSM = L.tileLayer.provider('OpenStreetMap.Mapnik');
     window.lyrEWM = L.tileLayer.provider('Esri.WorldStreetMap');
-    window.lyrCDM = L.tileLayer.provider('CartoDB.DarkMatter');
     window.lyrSMD = L.tileLayer.provider("Stadia.AlidadeSmoothDark");
     
     // Base map layers
@@ -45,8 +44,7 @@ function initializeMap() {
         "Open Street Maps": window.lyrOSM,                    
         "Open Topo Maps": window.lyrOTM,                    
         "ESRI World Street Maps": window.lyrEWM,
-        "Smooth Dark": window.lyrSMD,
-        "Carto Dark Matter": window.lyrCDM,
+        "Smooth Dark": window.lyrSMD
     };
 
     // Create feature groups for drawing polygons

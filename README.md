@@ -8,12 +8,17 @@ A web-based Geographic Information System for natural hazards risk assessment in
 
 ## 🎯 Overview
 
-This application was developed as part of a Master's thesis project at the University of Lausanne (UNIL). It provides a complete workflow for:
+This application was developed as part of a Master's degree in Geosciences at the University of Lausanne (UNIL), where **Risk** was a core module. It represents both the original thesis work and its continued development and improvement after graduation, extending the initial research into a fully functional web-based tool for natural hazards risk assessment.
 
-- **Multi-hazard analysis**: Rockfall
-- **Building vulnerability modeling**: Using triangular distribution curves based on Swiss building classifications
+Developed with the assistance of **GitHub Copilot**, leveraging AI-assisted coding to accelerate development, improve code quality, and implement complex spatial analysis and probabilistic modeling features.
+
+The application covers the following scope:
+
+- **Study area**: Cantons of Ticino and Vaud (Switzerland)
+- **Hazard type**: Rockfall
+- **Building vulnerability modeling**: Triangular distribution curves based on Swiss building classifications
 - **Deterministic assessment**: Method 1 (EconoMe) and Method 2 (Literature-based vulnerability functions)
-- **Monte Carlo simulations**: CAT Model methods (3-6) for probabilistic damage estimation
+- **Stochastic assessment**: Monte Carlo simulations generating four CAT Model variants (Methods 3–6) for probabilistic damage estimation
 - **Interactive visualization**: Real-time mapping with Swiss administrative boundaries and hazard layers
 
 ## 🚀 Features
@@ -98,13 +103,13 @@ No installation required - just open the link in a modern web browser (Chrome, F
 
 ### Quick Start Guide
 
-1. **Select Hazard Type**: Choose rockfall, debris flow, or flooding
-2. **Choose Location**: Select canton and commune from dropdowns
-3. **Load Data**: Click "Add Hazards" and "Add Buildings"
-4. **Draw Analysis Area**: Use polygon tool to select buildings
-5. **Configure Vulnerability**: Adjust curves if needed
-6. **Run Analysis**: Click "Run Analysis" to calculate risks
-7. **View Results**: Explore tables, graphs, and export reports
+1. **Select Hazard Type**: Leave rockfall selected.
+2. **Choose Data Source**: Leave Swiss API Data selected and choose a canton and commune from the dropdowns. **Upload Custom Data** requires GeoJSON files with specific attribute names.
+3. **Zoom to Area of Interest**: Zoom level must be higher than 15 so that buildings can be displayed.
+4. **Draw a Polygon Around Buildings Inside Hazards**: Use the polygon tool at the top left of the map.
+5. **Run Analysis**: Click "Run Analysis" to calculate risks.
+6. **View Results**: Explore tables, graphs, and export reports.
+7. **Optional Configuration**: Click "Show Buildings Info" to adjust building cost values. Click "Show Curves" to adapt vulnerability parameters for each building class.
 
 ## 📊 Usage Examples
 
@@ -130,10 +135,11 @@ This project is developed for academic purposes as part of a Master's thesis at 
 
 ## 🙏 Acknowledgments
 
-- **University of Lausanne (UNIL)** - Academic supervision
-- **Swiss Federal Office of Topography (swisstopo)** - GeoAdmin API
-- **Swiss Federal Statistical Office (BFS)** - Building register data
-- **Open Source Community** - Leaflet, Turf.js, Plotly.js, and other libraries
+- **University of Lausanne (UNIL)** - Academic supervision and Master's programme in Geosciences
+- **Swiss Federal Office of Topography (swisstopo)** - GeoAdmin API and open geospatial data
+- **Swiss Federal Statistical Office (BFS)** - Swiss building register data
+- **GitHub Copilot** - AI-assisted development throughout the project
+- **Open Source Community** - Leaflet, Turf.js, Plotly.js, and all other libraries used
 
 ## 🙋‍♂️ Contact
 Developed by Hélder Peixoto - helderasp@hotmail.com Feel free to reach out with feedback or contributions!

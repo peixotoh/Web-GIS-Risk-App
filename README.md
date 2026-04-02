@@ -65,31 +65,6 @@ The application covers the following scope:
 - **SheetJS (xlsx)** - Excel export
 - **html2canvas** - Visual content capture
 
-## 📁 Project Structure
-
-```
-webgisrisk-github/
-├── index.html              # Main application entry point
-├── src/
-│   ├── js/
-│   │   ├── app.js                    # Main orchestrator
-│   │   ├── building-management.js    # GeoAdmin API integration
-│   │   ├── spatial-analysis.js       # Turf.js operations
-│   │   ├── risk_calculation.js       # CAT Model implementations
-│   │   ├── vulnerability.js          # Vulnerability curves
-│   │   ├── analysis-visualization.js # Results display
-│   │   ├── data-processing.js        # File handling
-│   │   ├── map-init.js              # Leaflet initialization
-│   │   └── globals.js               # Global state management
-│   ├── css/
-│   │   └── main-styles.css          # Application styles
-│   └── plug/                        # Leaflet plugins
-├── data/
-│   ├── json/                        # Data files
-│   └── images/                      # Assets
-├── docs/                            # Documentation
-└── php/                             # Server-side scripts (optional)
-```
 
 ## 🚦 Getting Started
 

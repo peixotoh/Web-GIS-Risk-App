@@ -111,18 +111,6 @@ No installation required - just open the link in a modern web browser (Chrome, F
 6. **View Results**: Explore tables, graphs, and export reports.
 7. **Optional Configuration**: Click "Show Buildings Info" to adjust building cost values. Click "Show Curves" to adapt vulnerability parameters for each building class.
 
-## 📊 Usage Examples
-
-### Basic Risk Analysis
-```javascript
-// The application workflow:
-// 1. User selects hazard type → selectedHazard = 'rockfall'
-// 2. Location selection → fetchAndDisplayHazardLayer()
-// 3. Building loading → loadBuildingsFromGeoAdmin()
-// 4. Polygon drawing → extractBuildingsInsidePolygon()
-// 5. Analysis → runSpatialAnalysis() + CAT Models
-// 6. Results → showAnalysisResultsModal()
-```
 
 ### Custom Data Upload
 The application supports GeoJSON files for custom hazard and building data:
